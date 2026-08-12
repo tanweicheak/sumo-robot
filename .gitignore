@@ -1,0 +1,16 @@
+# Python Virtual Environment
+.venv/
+
+# Large Model Weights & Checkpoints (Exceeds GitHub limits)
+models/
+checkpoints/
+
+# Data, Logs, and Caches
+data/
+logs/
+results/
+backup/
+.pytest_cache/
+
+# System Files
+.DS_Store

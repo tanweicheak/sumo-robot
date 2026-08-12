@@ -1,0 +1,16 @@
+# Ablation 5b.3: Benchmark 2 with DSPy removed.
+variant_name: ablation_no_dspy
+extends: _shared_defaults.yaml
+
+ablation:
+  strategy: no_dspy
+  # Prompt program frozen at its initial hand-authored state for the entire run;
+  # LoRA SFT still trains on whatever trajectories the static prompt collects.
+  # See plan Assumption A3.
+
+components:
+  mcts: enabled
+  llm_as_a_judge: enabled
+  dspy: disabled
+
+checkpoint_output_dir: checkpoints/ablation_no_dspy/

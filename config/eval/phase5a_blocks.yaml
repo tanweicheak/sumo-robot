@@ -1,0 +1,38 @@
+# Phase 5a - Comparative Simulation Evaluation (report.md Section 3.3.5.1.1).
+# match_count_per_pairing is "to be confirmed during pilot calibration" (plan
+# Clarification #10) - PLACEHOLDER default of 500 per report.md's own stated floor.
+
+match_count_per_pairing: 500   # PLACEHOLDER, pilot-dependent (plan #10)
+
+blocks:
+  block_a_baseline_calibration:
+    research_question: null   # reference points only, not a direct RQ per plan Section 6.6
+    pairings:
+      - attacker: benchmark1_multiagent_zeroshot
+        opponent: baseline1_rule_based
+      - attacker: benchmark1_multiagent_zeroshot
+        opponent: baseline2_ppo
+
+  block_b_benchmarking_optimized_framework:
+    research_question: RQ1
+    pairings:
+      - attacker: benchmark2_sbso_optimized
+        opponent: baseline1_rule_based
+      - attacker: benchmark2_sbso_optimized
+        opponent: baseline2_ppo
+
+  block_c_architecture_isolation:
+    research_question: RQ2
+    pairings:
+      - attacker: baseline3_monolithic_zeroshot
+        opponent: benchmark1_multiagent_zeroshot
+      - attacker: baseline3_monolithic_zeroshot
+        opponent: benchmark2_sbso_optimized
+
+  block_d_optimization_loop_isolation:
+    research_question: RQ2   # RO2's optimization component specifically
+    pairings:
+      - attacker: benchmark2_sbso_optimized
+        opponent: benchmark1_multiagent_zeroshot
+
+total_matches: 3500   # 4 blocks x (2 or 1 pairings) x match_count_per_pairing

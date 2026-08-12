@@ -1,0 +1,21 @@
+# Phase 5b - Component Ablation Study (report.md Section 3.3.5.2).
+match_count_per_pairing: 500   # PLACEHOLDER, matches phase5a_blocks.yaml (plan #10)
+
+scenarios:
+  - id: 5b.1
+    attacker: ablation_no_sa
+    opponent: benchmark2_sbso_optimized
+  - id: 5b.2
+    attacker: ablation_no_mcts
+    opponent: benchmark2_sbso_optimized
+  - id: 5b.3
+    attacker: ablation_no_dspy
+    opponent: benchmark2_sbso_optimized
+  - id: 5b.4
+    attacker: ablation_no_judge
+    opponent: benchmark2_sbso_optimized
+
+total_matches: 2000
+
+kpi_set: same_as_phase5a   # like-for-like comparison, report.md Section 3.3.5.2
+effect_size_threshold_cohens_d: 0.3   # "small-to-medium" per report.md Section 3.3.5.1.2

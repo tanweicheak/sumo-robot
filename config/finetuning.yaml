@@ -1,0 +1,31 @@
+# Stage 2/3 fine-tuning pipeline paths and hyperparameters.
+# IMPORTANT: hf_base_model_path is a DIFFERENT artifact from the GGUF you downloaded in
+# Phase 3. GGUF is for llama.cpp inference only; LoRA fine-tuning via transformers/peft
+# needs the original HuggingFace safetensors checkpoint. Download separately:
+#   huggingface-cli download microsoft/Phi-4-mini-instruct --local-dir models/phi-4-mini-hf
+hf_base_model_path: models/phi-4-mini-hf
+gguf_model_path: models/phi-4-mini-Q4_K_M.gguf     # Phase 3 artifact, used for inference/judge
+
+judge_model_path: models/llama-3.1-8b-instruct-Q4_K_M.gguf   # download separately
+
+lora:
+  rank: 16
+  alpha: 32
+  target_modules: [q_proj, k_proj, v_proj, o_proj]
+  learning_rate: 0.0002
+  epochs: 3
+  device: mps          # mps (local Mac token-run) | cuda (cloud)
+
+paths:
+  lora_output_dir: checkpoints/benchmark2_full_sbso/lora_adapters
+  merged_output_dir: checkpoints/benchmark2_full_sbso/merged_fp16
+  quantized_output_dir: checkpoints/benchmark2_full_sbso/quantized_int4
+  gguf_output_path: checkpoints/benchmark2_full_sbso/gguf/benchmark2.gguf
+
+quantization:
+  bits: 4
+  # CLOUD ONLY - see src/finetuning/quantize_gptq.py
+
+gguf_export:
+  llama_cpp_convert_script: null   # path to llama.cpp's convert_hf_to_gguf.py, set per-machine
+  outtype: q4_k_m

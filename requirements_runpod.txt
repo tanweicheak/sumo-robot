@@ -1,0 +1,17 @@
+# Additional dependencies for RunPod (Stage 3: SGLang serving, LoRA fine-tuning, GPTQ
+# quantization). Install AFTER requirements.txt, on the pod:
+#   pip install -r requirements.txt -r requirements-cloud.txt
+#
+# torch here should be the CUDA build matching the pod's CUDA version - RunPod's
+# PyTorch template images typically already have a matching torch preinstalled, so you
+# may not need to reinstall it at all (check with `python -c "import torch; print(torch.__version__, torch.cuda.is_available())"`
+# before running pip install torch again).
+
+-r requirements.txt
+
+sglang>=0.4          # the actual server package - only needed where the server runs
+transformers>=4.44
+peft>=0.11           # LoRA adapters (merge_adapters.py)
+accelerate>=0.30
+gptqmodel>=1.4       # GPTQ INT4 quantization (quantize_gptq.py) - requires CUDA
+huggingface-hub>=0.24

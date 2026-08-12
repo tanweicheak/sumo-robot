@@ -1,0 +1,20 @@
+# Sumo-SBSO Framework - root project configuration
+# See: sumo-sbso-implementation-plan.md
+
+project:
+  name: sumo-sbso-framework
+  thesis_ref: "WQD 7025 Data Science Research Project"
+  base_slm: phi-4-mini
+  judge_model: llama-3.1-8b-instruct
+
+scope_exclusions:
+  - physical_deployment_beyond_hel_emulation
+  - multi_robot_team_sumo
+  - model_architectures_beyond_phi_4_mini   # applies to OAA, SA, TEA, and MRA (plan Assumption A1)
+
+decision_window_ms: 50   # pilot-calibrated design target, NOT a literature-proven SLM constraint (plan Clarification #11)
+
+sensor_channels:          # exactly 3, no IMU (plan Assumption A2)
+  - tof_distance_object
+  - ir_edge
+  - motor_encoder

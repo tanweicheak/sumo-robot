@@ -1,0 +1,46 @@
+# Baseline 2 (PPO) training config. Local-CPU defaults; scale up via total_timesteps
+# and n_envs. PLACEHOLDER hyperparameters - refine during pilot calibration.
+extend: baseline2_ppo.yaml
+variant_name: baseline2_ppo_smoke
+
+training:
+  total_timesteps: 2000   # SCALE-UP KNOB: raise for stronger policy
+  n_envs: 2                       # SCALE-UP KNOB: parallel envs (CPU cores)
+  seed: 42
+  device: cpu                     # small MlpPolicy trains fine on CPU
+  checkpoint_output_dir: checkpoints/baseline2_ppo/
+
+opponent:
+  type: rule_based                # train against Baseline 1 (frozen)
+
+env:
+  enable_reward_shaping: true     # shaping ON during training (sparse at eval)
+  # Optional dense shaping to help PPO (Baseline 2); sparse-only for eval fidelity.
+  shaping_push_weight: float = 0.05      # reward opponent moving toward the rim
+  shaping_contact_weight: float = 0.01   # reward staying close enough to push
+  shaping_center_weight: float = 0.005   # penalize agent self-ejecting
+  max_episode_seconds: 15.0
+  use_gui: false
+
+ppo:                              # SB3 PPO hyperparameters (MlpPolicy)
+  policy: MlpPolicy
+  learning_rate: 0.0003
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.0
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+
+vec_normalize:                    # state-vector normalization (report.md requirement)
+  norm_obs: true
+  norm_reward: true
+  clip_obs: 10.0
+
+eval:
+  eval_freq: 50_000               # per-env steps between eval checkpoints
+  n_eval_episodes: 20
+  deterministic: true

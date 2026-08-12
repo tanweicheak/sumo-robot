@@ -1,0 +1,24 @@
+# Hardware Emulation Layer profile: NVIDIA Jetson Nano (report.md Section 3.3.3.4).
+# PLACEHOLDER values - to be pilot-calibrated against real Jetson Nano benchmarks (Phase 3).
+
+device_name: nvidia_jetson_nano
+
+cpu:
+  quota_percent: 100     # PLACEHOLDER - throttling profile TBD during Phase 3 pilot
+  core_count: 4
+
+memory:
+  ram_cap_mb: 4096        # PLACEHOLDER
+
+latency_injection:
+  enabled: true
+  mode: additive           # additive | multiplicative, PLACEHOLDER
+  additive_ms: 0            # PLACEHOLDER - calibrated in Phase 3
+
+logging:
+  fields:
+    - requested_inference_time_ms
+    - actual_emulated_inference_time_ms
+    - peak_memory_mb
+    - cpu_quota_utilization_percent
+    - deadline_compliant   # bool, vs decision_window_ms in project_config.yaml

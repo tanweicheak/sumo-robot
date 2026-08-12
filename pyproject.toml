@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sumo-sbso-framework"
+version = "0.0.0"
+description = "Multi-agent SLM framework with Simulation-Based Strategy Optimization for autonomous sumo robotics (WQD 7025)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary - academic research" }
+
+# Runtime dependencies are intentionally NOT pinned here at Phase 0 because they
+# install per-phase (heavy ML/sim stacks). See requirements.txt for the working set.
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+# Run from repo root so `import src...` resolves; no src-layout indirection.
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+exclude = ["checkpoints", "data", "results", "notebooks"]
+
+[tool.ruff.lint]
+# Phase 0 keeps the rule set lean; tighten as real code lands.
+select = ["E", "F", "I", "W", "B"]
+ignore = [
+    "E501",  # line length handled by formatter, not enforced hard at Phase 0
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+"src/**/__init__.py" = ["F401"]

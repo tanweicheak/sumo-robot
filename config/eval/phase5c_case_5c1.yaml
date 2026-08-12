@@ -1,0 +1,23 @@
+# Phase 5c - Real-World Validation, Case 5c.1 (report.md Section 3.3.5.3).
+# Empirical dataset not yet received (plan Clarifications #6, #7) - this config
+# stays parametric until real data lands.
+
+evaluated_checkpoint: benchmark2_sbso_optimized
+sensor_channels: [tof_distance_object, ir_edge, motor_encoder]   # no IMU, plan Assumption A2
+
+episode_count_target_ceiling: 300   # TBC - actual n may vary (best-of-3 knockout, plan #7)
+match_count_source: 100              # TBC (plan #6)
+
+kpis:
+  sensor_robustness_index:
+    threshold: null            # reported descriptively, no fixed threshold by design
+    statistical_test: bootstrap_and_cohens_d
+  decision_stability_index:
+    threshold: null            # reported descriptively, no fixed threshold by design
+    statistical_test: mann_whitney_u
+  schema_validity_rate_under_noise:
+    threshold_min_percent: 99
+    statistical_test: bootstrap_and_cohens_d
+  latency_compliance_rate_under_noise:
+    threshold_min_percent: 95
+    statistical_test: bootstrap_and_cohens_d

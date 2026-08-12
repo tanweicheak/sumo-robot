@@ -1,0 +1,41 @@
+# Sumo-SBSO Framework - dependencies grouped by the phase that first needs them.
+# Phase 0 installs only the top group; heavier stacks install as you reach their phase
+# (many are best installed in a cloud GPU environment per the project brief, not locally).
+#
+# Versions are left unpinned at Phase 0 and will be pinned per-phase once each stack is
+# validated against the target environment.
+
+# --- Phase 0 (config, tests, tooling) - install now ---
+pyyaml>=6.0
+pytest>=8.0
+ruff>=0.5
+
+# --- Phase 1 (simulation + RL baselines) ---
+pybullet
+stable-baselines3
+gymnasium
+numpy
+scipy            # Savitzky-Golay lives here (also used by Phase 2 preprocessing)
+
+# --- Phase 2 (agents, orchestration, schemas) ---
+# pydantic>=2
+# langgraph
+
+# --- Phase 3 (inference infrastructure) ---
+# outlines
+# sglang
+# llama-cpp-python
+
+# --- Phase 4 (SBSO training + fine-tuning/compression) ---
+# dspy-ai
+# transformers
+# peft             # LoRA
+# auto-gptq        # INT4 quantization
+# torch
+# (GGUF export via llama.cpp tooling)
+
+# --- Phase 5 (evaluation + statistics) ---
+# numpy            # (already pulled in Phase 1)
+# scipy            # Mann-Whitney U, bootstrap helpers
+# pandas
+# matplotlib       # KPI dashboards / report tables

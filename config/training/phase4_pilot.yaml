@@ -1,0 +1,40 @@
+# Phase 4 PILOT - 1 variant x 500 episodes, purpose: measure real wall-clock time and
+# extrapolate cost for the full 5x5000-episode run BEFORE committing RunPod spend.
+# Opponent pool scoped to Baseline 1/2 only (self-checkpoint-as-opponent needs the full
+# real SLM pipeline as an opponent controller - deferred to the full run to keep the
+# pilot's cost profile honest and comparable across timing runs).
+variant_name: benchmark2_pilot
+extends: _shared_defaults.yaml
+
+episodes_total: 500                       # override: pilot scope, not the full 5000
+self_checkpoint_interval_episodes: 100    # smaller so you see checkpointing fire a few times
+
+mcts:
+  sim_budget: 20      # smaller than full-run's likely 30-50, for pilot speed
+  horizon: 3
+  judge_prune_threshold: 0.3
+  decision_cycles: 6              # physical control cycles executed per macro-decision
+  max_decisions_per_match: 50     # safety cap; match also ends on win/loss/timeout
+
+dspy_recompilation:
+  k_rollout_batches: 100    # override _shared_defaults' 500, so DSPy visibly fires ~5x in the pilot
+  reward_drop_threshold_delta: 0.05
+  rolling_window_w: 50
+
+opponent_pool:
+  pilot_scope: [baseline1, baseline2]   # self_checkpoint EXCLUDED for pilot (see header note)
+
+ablation:
+  strategy: none
+
+components:
+  mcts: enabled
+  llm_as_a_judge: enabled
+  dspy: enabled
+
+checkpoint_output_dir: checkpoints/benchmark2_pilot/
+
+cost_projection:
+  full_episodes_per_variant: 5000
+  num_variants: 5
+  gpu_rate_usd_per_hr: 1    # update to your actual RunPod rate before running

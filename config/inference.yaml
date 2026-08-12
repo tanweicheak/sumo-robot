@@ -1,0 +1,39 @@
+# SLM inference backend selection. Swap `backend` between mock (dev/CI) and llama_cpp
+# (real Phi-4-mini) without touching code.
+backend: mock          # mock | llama_cpp
+
+mock:
+  seed: 0
+  latency_ms: 0.0        # set >0 to simulate inference cost for latency-path testing
+
+llama_cpp:
+  # Path to the GGUF model. Phi-4-mini primary; swap to a smaller GGUF for faster dev.
+  model_path: models/phi-4-mini-Q4_K_M.gguf
+  model_name: phi-4-mini    # documentation only
+  n_ctx: 2048
+  n_gpu_layers: -1          # -1 = offload all layers to Metal (Apple Silicon) / GPU
+  temperature: 0.0          # greedy decoding for deterministic tactical decisions
+  max_tokens: 8             # enum outputs are short; tight cap for latency
+  seed: 0
+  verbose: false
+
+sglang:
+  # SGLang serves HF-format checkpoints, NOT the Phase 3 GGUF. Point at the same
+  # HF directories used for LoRA fine-tuning / the merged model.
+  agent_server_url: http://localhost:30000    # Phi-4-mini (base or merged, per variant)
+  judge_server_url: http://localhost:30001    # Llama-3.1-8B-Instruct
+  temperature: 0.0
+  max_tokens: 8
+  timeout_s: 30
+  max_concurrency: 16     # concurrent in-flight requests per client (tune to GPU headroom)
+
+  # --- server launch parameters (consumed by scripts/launch_sglang_servers.sh) ---
+  launch:
+    agent_model_path: models/phi-4-mini-hf
+    agent_port: 30000
+    agent_mem_fraction_static: 0.45
+    judge_model_path: models/llama-3.1-8b-instruct-hf
+    judge_port: 30001
+    judge_mem_fraction_static: 0.45
+    host: 0.0.0.0
+    startup_timeout_s: 300

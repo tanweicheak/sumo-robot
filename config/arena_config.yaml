@@ -1,0 +1,46 @@
+# Dohyo arena geometry and chassis spec.
+# Source: system-level architecture brief (plan Clarification #14 - authoritative).
+
+arena:
+  radius_m                : 1.5
+  diameter_m              : 3.0
+  boundary_line_width_m   : 0.05
+
+robot:
+  chassis_mass_kg         : 1.0
+  chassis_half_extents_m  : [0.10, 0.10, 0.04]
+  wheel_radius_m          : 0.04
+  wheel_width_m           : 0.02
+  wheel_mass_kg           : 0.10                      # x4 wheels; base carries the remainder
+  max_wheel_speed_rad_s   : 14.0                      # PLACEHOLDER - pilot-calibrated
+  max_wheel_torque_nm     : 12.0                      # PLACEHOLDER - governs push strength
+  wheel_lateral_friction  : 1.5
+  chassis_lateral_friction: 0.4
+
+# LSSD categorical thresholds (Perception Agent, report.md Section 3.3.2.3).
+# PLACEHOLDER - confirm against physical sensor range (plan Assumption A5).
+lssd_thresholds:
+  distance_cm:
+    near_max              : 20      # 0-20cm -> "near"
+    mid_max               : 60      # 20-60cm -> "mid"; >60cm -> "far"
+  edge_approach_rate:
+    stable_max            : 0.1     # normalized rate-of-approach units, PLACEHOLDER
+    approaching_max       : 0.5     # above this -> "critical"
+
+episode:
+  sim_timestep_s: 0.00416666667           # 1/240 s
+  control_dt_s: 0.05                       # 50 ms decision window
+  max_episode_seconds: 15.0                # avg match duration per report
+  spawn_offset_m: 0.6                      # each robot this far from center
+
+# --- Optional PPO reward shaping (Baseline 2 training only) ---
+reward_shaping:
+  contact_dist_m: 0.30      # robots within this distance count as in contact
+  fwd_weight: 0.03          # reward forward motion (anti-stall)
+  push_weight: 0.50         # reward front-on pushing
+  edge_bonus: 0.10          # bonus for driving opponent toward the rim
+  track_weight: 0.02        # reward facing/approaching the opponent
+  glance_penalty: 0.15      # penalty for side/glancing contact (anti-dancing)
+  spin_penalty: 0.10        # penalty for spinning without forward progress
+  selfeject_penalty: 0.40   # penalty for facing own edge near the rim
+  time_penalty: 0.03        # per-step time cost (encourage decisive wins)

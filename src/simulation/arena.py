@@ -1,0 +1,132 @@
+"""
+src.simulation.arena
+
+Phase: Phase 1
+Purpose: Dohyo geometry (radius, boundary line) and boundary-crossing detection. Reads config/arena_config.yaml.
+
+Status: STUB (Phase 0 scaffold). Not yet implemented.
+Do not import heavy third-party dependencies (pybullet, transformers, etc.) at
+module level until this file is implemented in its target phase - Phase 0's
+import-smoke-test relies on every stub being importable with only the
+standard library available.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import pybullet as p
+import pybullet_data
+
+from src.common.config_loader import load_config
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_ARENA_CONFIG = REPO_ROOT / "config" / "arena_config.yaml"
+
+
+@dataclass
+class DohyoSpec:
+    radius_m: float
+    boundary_line_width_m: float
+    platform_thickness_m: float = 0.10
+    # Top surface height above the catch-plane (z=0). Robots ride on this surface.
+    platform_top_z: float = 0.10
+
+    @property
+    def platform_center_z(self) -> float:
+        return self.platform_top_z - self.platform_thickness_m / 2.0
+
+
+class Dohyo:
+    """The sumo ring. One instance per simulation client."""
+
+    def __init__(self, client_id: int, spec: DohyoSpec) -> None:
+        self.client_id = client_id
+        self.spec = spec
+        self.ground_id: int | None = None
+        self.platform_id: int | None = None
+
+    @classmethod
+    def from_config(cls, client_id: int, config_path: str | Path = DEFAULT_ARENA_CONFIG) -> "Dohyo":
+        cfg: dict[str, Any] = load_config(config_path)
+        arena = cfg["arena"]
+        spec = DohyoSpec(
+            radius_m=float(arena["radius_m"]),
+            boundary_line_width_m=float(arena["boundary_line_width_m"]),
+        )
+        return cls(client_id, spec)
+
+    def build(self) -> None:
+        """Create the catch-plane and the raised dohyo platform."""
+        p.setAdditionalSearchPath(pybullet_data.getDataPath(), physicsClientId=self.client_id)
+        # Catch-plane well-suited as the floor a fallen robot lands on.
+        self.ground_id = p.loadURDF("plane.urdf", physicsClientId=self.client_id)
+
+        col = p.createCollisionShape(
+            p.GEOM_CYLINDER,
+            radius=self.spec.radius_m,
+            height=self.spec.platform_thickness_m,
+            physicsClientId=self.client_id,
+        )
+        # Play surface: dark. Outer boundary line rendered as a slightly larger white disk
+        # sitting just beneath the play surface so its rim shows as a ring.
+        vis_surface = p.createVisualShape(
+            p.GEOM_CYLINDER,
+            radius=self.spec.radius_m,
+            length=self.spec.platform_thickness_m,
+            rgbaColor=[0.15, 0.15, 0.18, 1.0],
+            physicsClientId=self.client_id,
+        )
+        self.platform_id = p.createMultiBody(
+            baseMass=0.0,  # static
+            baseCollisionShapeIndex=col,
+            baseVisualShapeIndex=vis_surface,
+            basePosition=[0.0, 0.0, self.spec.platform_center_z],
+            physicsClientId=self.client_id,
+        )
+        # White boundary ring (visual only) as a thin disk flush with the top surface.
+        ring_vis = p.createVisualShape(
+            p.GEOM_CYLINDER,
+            radius=self.spec.radius_m,
+            length=0.002,
+            rgbaColor=[0.95, 0.95, 0.95, 1.0],
+            physicsClientId=self.client_id,
+        )
+        inner_vis = p.createVisualShape(
+            p.GEOM_CYLINDER,
+            radius=self.spec.radius_m - self.spec.boundary_line_width_m,
+            length=0.004,
+            rgbaColor=[0.15, 0.15, 0.18, 1.0],
+            physicsClientId=self.client_id,
+        )
+        p.createMultiBody(
+            baseMass=0.0,
+            baseVisualShapeIndex=ring_vis,
+            basePosition=[0.0, 0.0, self.spec.platform_top_z + 0.001],
+            physicsClientId=self.client_id,
+        )
+        p.createMultiBody(
+            baseMass=0.0,
+            baseVisualShapeIndex=inner_vis,
+            basePosition=[0.0, 0.0, self.spec.platform_top_z + 0.002],
+            physicsClientId=self.client_id,
+        )
+        # Platform friction: moderate, so pushing translates to sliding rather than grip-lock.
+        p.changeDynamics(self.platform_id, -1, lateralFriction=0.6, physicsClientId=self.client_id)
+
+    def is_outside(self, position: tuple[float, float, float]) -> bool:
+        """True once the body center crosses the ring edge (radial > radius)."""
+        x, y, _ = position
+        return math.hypot(x, y) > self.spec.radius_m
+
+    def has_fallen(self, position: tuple[float, float, float]) -> bool:
+        """Backstop for the edge test: body dropped well below the platform top."""
+        return position[2] < self.spec.platform_top_z - 0.05
+
+    def distance_to_edge(self, position: tuple[float, float, float]) -> float:
+        """Signed distance from body center to the ring edge (positive = inside)."""
+        x, y, _ = position
+        return self.spec.radius_m - math.hypot(x, y)

@@ -1,0 +1,13 @@
+# Benchmark 2: Multi-Agent Full SBSO Model.
+variant_name: benchmark2_full_sbso
+extends: _shared_defaults.yaml
+
+ablation:
+  strategy: none   # full pipeline: MCTS + LLM-as-a-Judge + DSPy + LoRA
+
+components:
+  mcts: enabled
+  llm_as_a_judge: enabled
+  dspy: enabled
+
+checkpoint_output_dir: checkpoints/benchmark2_full_sbso/

@@ -1,0 +1,15 @@
+# Ablation 5b.1: Benchmark 2 with Strategy Agent (SA) removed.
+variant_name: ablation_no_sa
+extends: _shared_defaults.yaml
+
+ablation:
+  strategy: no_sa
+  # OAA output is passed directly to TEA; no macro-strategy field exists for this
+  # condition. See src/sbso/ablation_strategies.py and plan Assumption A3.
+
+components:
+  mcts: enabled
+  llm_as_a_judge: enabled
+  dspy: enabled
+
+checkpoint_output_dir: checkpoints/ablation_no_sa/

@@ -1,0 +1,20 @@
+# Shared defaults referenced by all Phase 4 training configs (not loaded directly).
+# Pilot-dependent constants (plan Assumption A7) - PLACEHOLDER until pilot calibration.
+
+episodes_total: 5000
+self_checkpoint_interval_episodes: 500   # -> 10 checkpoints over a full run
+
+opponent_pool:
+  warmup_episodes: 500          # episodes 0-499: Tier1/Tier2 only, ~250 each
+  warmup_split:
+    baseline1: 250
+    baseline2: 250
+  full_run_targets:              # totals across the FULL 5000-episode run
+    baseline1: 1667
+    baseline2: 1667
+    self_checkpoint: 1666
+
+dspy_recompilation:               # PLACEHOLDER - pilot calibration pending (plan #10)
+  k_rollout_batches: 5         # trigger (a): recompile every K batches
+  reward_drop_threshold_delta: 0.05   # trigger (b): rolling mean reward drop > delta
+  rolling_window_w: 10              # window size for trigger (b)
