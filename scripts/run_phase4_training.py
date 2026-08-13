@@ -23,7 +23,7 @@ from src.sbso.training_loop import SBSOTrainer
 
 
 def main() -> None:
-    config, ctx = build_run(phase="phase4", description="Phase 4 SBSO training (Stage 1: mock loop).")
+    config, ctx, _args = build_run(phase="phase4", description="Phase 4 SBSO training (Stage 1: mock loop).")
 
     ablation = AblationConfig.for_variant(config.get("ablation", {}).get("strategy", "none"))
     strategies = list(MacroStrategy)
@@ -42,19 +42,12 @@ def main() -> None:
     # (Full run on cloud uses self_checkpoint_interval_episodes: 500 with 5000 episodes.)
     interval = int(config.get("training", {}).get("local_stage1_checkpoint_interval", 5))
 
-    # Shared instance: OpponentPool needs the SAME manager the trainer snapshots into,
-    # so what it offers as "self_checkpoint" (Stage 3a) matches what actually got saved.
-    checkpoint_mgr = SelfCheckpointManager(interval=interval)
-
     trainer = SBSOTrainer(
         ablation=ablation,
         mcts=mcts,
-        opponent_pool=OpponentPool(
-            warmup_episodes=min(5, episodes), total_episodes=episodes,
-            self_checkpoint_manager=checkpoint_mgr,
-        ),
+        opponent_pool=OpponentPool(warmup_episodes=min(5, episodes), total_episodes=episodes),
         scheduler=RecompilationScheduler(k_episodes=5, window_w=10, delta=0.05),
-        checkpoint_mgr=checkpoint_mgr,
+        checkpoint_mgr=SelfCheckpointManager(interval=interval),
         dspy_compiler=MockDSPyCompiler(),
         strategies=strategies,
         episodes=episodes,

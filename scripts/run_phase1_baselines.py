@@ -69,7 +69,7 @@ def _make_env_fn(env_cfg: EnvConfig, opponent_factory):
 
 
 def main() -> None:
-    config, ctx = build_run(
+    config, ctx, _args = build_run(
         phase="phase1",
         description="Phase 1: train/freeze Baseline 2 (PPO) vs rule-based Baseline 1.",
     )

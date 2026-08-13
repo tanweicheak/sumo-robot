@@ -1,85 +1,57 @@
 #!/usr/bin/env bash
 # scripts/launch_sglang_servers.sh
 #
-# Phase 4 (Stage 3) - launches the two SGLang servers this project needs: the agent
-# model (Phi-4-mini, serves OAA/SA/TEA calls + MCTS rollouts) and the judge model
-# (Llama-3.1-8B-Instruct). Reads config/inference.yaml's sglang.launch block.
-# CUDA-only; will not run on the local Mac (no SGLang without NVIDIA GPU).
+# Starts BOTH SGLang servers inference.yaml expects, each in its own detached tmux
+# session, so they keep running after you disconnect:
+#   - agent server (port 30000): Phi-4-mini - only needed for LIVE match inference
+#     (OAA/SA/TEA via LangGraph), NOT needed for Stage 3 SBSO training itself, which
+#     uses MacroStrategyExecutor instead of live SLM calls during MCTS.
+#   - judge server (port 30001): Llama-3.1-8B-Instruct - THIS is the one
+#     run_phase4_stage3_cloud.py actually needs.
 #
-# Usage:
-#   bash scripts/launch_sglang_servers.sh
-#   bash scripts/launch_sglang_servers.sh stop      # kill both servers
+# Usage (on the RunPod pod, after pip install -r requirements.txt -r requirements-cloud.txt):
+#   bash scripts/launch_sglang_servers.sh /workspace/models/phi-4-mini-hf /workspace/models/llama-3.1-8b-instruct-hf
+#
+# Training-only run? You can skip the agent server entirely - see launch_judge_only below.
+#
+# Check both are up:
+#   curl http://localhost:30000/health
+#   curl http://localhost:30001/health
+#
+# Watch logs:
+#   tmux attach -t sglang-agent    (Ctrl+B then D to detach again)
+#   tmux attach -t sglang-judge
+#
+# Stop:
+#   tmux kill-session -t sglang-agent
+#   tmux kill-session -t sglang-judge
 
 set -euo pipefail
 
-CONFIG_FILE="config/inference.yaml"
-LOG_DIR="logs/sglang"
-mkdir -p "$LOG_DIR"
+AGENT_MODEL_PATH="${1:-}"
+JUDGE_MODEL_PATH="${2:?Usage: launch_sglang_servers.sh [agent_model_path] <judge_model_path>}"
+AGENT_PORT="${3:-30000}"
+JUDGE_PORT="${4:-30001}"
+MEM_FRACTION="${5:-0.45}"   # inference.yaml default - each server gets ~45% of GPU memory
 
-# --- tiny YAML value extraction (avoids adding a bash YAML dependency) ---
-_yaml_get() {
-  python3 -c "
-import sys
-sys.path.insert(0, '.')
-from src.common.config_loader import load_config
-cfg = load_config('$CONFIG_FILE')
-node = cfg
-for part in '$1'.split('.'):
-    node = node[part]
-print(node)
-"
+_start_one() {
+    local name="$1" model_path="$2" port="$3"
+    if tmux has-session -t "$name" 2>/dev/null; then
+        echo "tmux session '$name' already exists - run 'tmux kill-session -t $name' first to restart it."
+        return 0
+    fi
+    tmux new-session -d -s "$name" \
+        "python -m sglang.launch_server --model-path '${model_path}' --port ${port} --host 0.0.0.0 --mem-fraction-static ${MEM_FRACTION}"
+    echo "Starting '$name' on port ${port} (model: ${model_path})"
 }
 
-if [[ "${1:-}" == "stop" ]]; then
-  echo "Stopping SGLang servers..."
-  pkill -f "sglang.launch_server.*--port $(_yaml_get sglang.launch.agent_port)" || true
-  pkill -f "sglang.launch_server.*--port $(_yaml_get sglang.launch.judge_port)" || true
-  echo "Done."
-  exit 0
+if [ -n "$AGENT_MODEL_PATH" ]; then
+    _start_one "sglang-agent" "$AGENT_MODEL_PATH" "$AGENT_PORT"
+else
+    echo "No agent_model_path given - skipping the agent server (fine for training-only runs;"
+    echo "run_phase4_stage3_cloud.py only needs the judge server)."
 fi
+_start_one "sglang-judge" "$JUDGE_MODEL_PATH" "$JUDGE_PORT"
 
-AGENT_MODEL=$(_yaml_get sglang.launch.agent_model_path)
-AGENT_PORT=$(_yaml_get sglang.launch.agent_port)
-AGENT_MEM=$(_yaml_get sglang.launch.agent_mem_fraction_static)
-JUDGE_MODEL=$(_yaml_get sglang.launch.judge_model_path)
-JUDGE_PORT=$(_yaml_get sglang.launch.judge_port)
-JUDGE_MEM=$(_yaml_get sglang.launch.judge_mem_fraction_static)
-HOST=$(_yaml_get sglang.launch.host)
-TIMEOUT_S=$(_yaml_get sglang.launch.startup_timeout_s)
-
-echo "Launching agent server: $AGENT_MODEL on port $AGENT_PORT (mem_fraction=$AGENT_MEM)"
-nohup python3 -m sglang.launch_server \
-    --model-path "$AGENT_MODEL" \
-    --host "$HOST" --port "$AGENT_PORT" \
-    --mem-fraction-static "$AGENT_MEM" \
-    > "$LOG_DIR/agent_server.log" 2>&1 &
-echo $! > "$LOG_DIR/agent_server.pid"
-
-echo "Launching judge server: $JUDGE_MODEL on port $JUDGE_PORT (mem_fraction=$JUDGE_MEM)"
-nohup python3 -m sglang.launch_server \
-    --model-path "$JUDGE_MODEL" \
-    --host "$HOST" --port "$JUDGE_PORT" \
-    --mem-fraction-static "$JUDGE_MEM" \
-    > "$LOG_DIR/judge_server.log" 2>&1 &
-echo $! > "$LOG_DIR/judge_server.pid"
-
-echo "Waiting for both servers to become healthy (timeout ${TIMEOUT_S}s)..."
-for port in "$AGENT_PORT" "$JUDGE_PORT"; do
-  waited=0
-  until curl -sf "http://${HOST}:${port}/health" > /dev/null 2>&1; do
-    sleep 5
-    waited=$((waited + 5))
-    if [[ $waited -ge $TIMEOUT_S ]]; then
-      echo "ERROR: server on port $port did not become healthy within ${TIMEOUT_S}s."
-      echo "Check $LOG_DIR/*.log for details."
-      exit 1
-    fi
-  done
-  echo "Port $port healthy."
-done
-
-echo "Both SGLang servers are up."
-echo "  agent:  http://${HOST}:${AGENT_PORT}"
-echo "  judge:  http://${HOST}:${JUDGE_PORT}"
-echo "Logs: $LOG_DIR/agent_server.log, $LOG_DIR/judge_server.log"
-echo "Stop with: bash scripts/launch_sglang_servers.sh stop"
+echo
+echo "Both can take 30-90s to finish loading before /health responds."

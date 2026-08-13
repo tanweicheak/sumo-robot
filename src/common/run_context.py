@@ -60,12 +60,7 @@ class RunContext:
             self.config_hash = _config_hash(self.resolved_config)
         if not self.run_id:
             # e.g. benchmark2_full_sbso__phase4__20260808T101500Z__a1b2c3d4e5f6
-            stamp = (
-                self.created_at.replace("-", "")
-                .replace(":", "")
-                .split(".")[0]
-                .replace("+0000", "Z")
-            )
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             self.run_id = f"{self.variant_name}__{self.phase}__{stamp}__{self.config_hash}"
 
     def to_dict(self) -> dict[str, Any]:
