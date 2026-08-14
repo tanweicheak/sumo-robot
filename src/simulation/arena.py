@@ -3,12 +3,6 @@ src.simulation.arena
 
 Phase: Phase 1
 Purpose: Dohyo geometry (radius, boundary line) and boundary-crossing detection. Reads config/arena_config.yaml.
-
-Status: STUB (Phase 0 scaffold). Not yet implemented.
-Do not import heavy third-party dependencies (pybullet, transformers, etc.) at
-module level until this file is implemented in its target phase - Phase 0's
-import-smoke-test relies on every stub being importable with only the
-standard library available.
 """
 
 from __future__ import annotations

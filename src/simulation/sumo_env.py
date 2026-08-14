@@ -46,8 +46,6 @@ class EnvConfig:
     spawn_offset_m: float = 0.6           # each robot this far from center
     use_gui: bool = False
     seed: int | None = None
-    # Optional dense shaping to help PPO (Baseline 2); sparse-only for eval fidelity.
-    enable_reward_shaping: bool = False
     # Optional dense shaping (privileged geometry; policy observation stays sensor-only).
     enable_reward_shaping: bool = False
     shaping_contact_dist_m: float = 0.30    # distance below which robots count as in contact
@@ -138,7 +136,7 @@ class PyBulletSumoEnv(gym.Env):
         p.setAdditionalSearchPath(pybullet_data.getDataPath(), physicsClientId=self.client_id)
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
-        super().reset(seed=seed)
+        super().reset(seed=seed if seed is not None else self.cfg.seed)
         self._connect()
         p.resetSimulation(physicsClientId=self.client_id)
         p.setGravity(0, 0, -9.81, physicsClientId=self.client_id)
@@ -168,8 +166,14 @@ class PyBulletSumoEnv(gym.Env):
             base_yaw_rad=math.pi, color=(0.9, 0.4, 0.2, 1.0),
         )
 
-        self.agent_sensors = SensorSuite(self.agent, self.client_id, self_body_id=self.agent.body_id)
-        self.opponent_sensors = SensorSuite(self.opponent, self.client_id, self_body_id=self.opponent.body_id)
+        self.agent_sensors = SensorSuite(
+            self.agent, self.client_id, self_body_id=self.agent.body_id,
+            spec=SensorSpec(chassis_half_extents_z=agent_spec.chassis_half_extents[2]),
+        )
+        self.opponent_sensors = SensorSuite(
+            self.opponent, self.client_id, self_body_id=self.opponent.body_id,
+            spec=SensorSpec(chassis_half_extents_z=opp_spec.chassis_half_extents[2]),
+        )
 
         # Settle onto the platform, then zero velocities so the first sensor read is
         # taken from rest (avoids a spurious edge-trigger from spawn-drop bounce).
@@ -197,7 +201,7 @@ class PyBulletSumoEnv(gym.Env):
         # (zero motor force) so the opponent can be pushed rather than brake-anchored.
         opp_obs = self.opponent_sensors.read()
         o_left, o_right = self.opponent_policy(opp_obs)
-        if o_left == 0.0 and o_right == 0.0:
+        if abs(o_left) < 1e-9 and abs(o_right) < 1e-9:
             self.opponent.coast()
         else:
             self.opponent.apply_pwm(o_left, o_right)

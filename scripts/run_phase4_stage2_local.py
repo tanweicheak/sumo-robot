@@ -8,18 +8,19 @@ Purpose: Run the SBSO training loop against REAL PyBullet physics and a REAL
 
     DSPy recompilation defaults to MockDSPyCompiler here (RealDSPyCompiler needs an
     actual llama.cpp HTTP server running separately - see dspy_compiler.py's D5b fix
-    docstring). Pass --real-dspy plus --dspy-server-url once you have one running.
+    docstring). Pass --real-dspy once you have one running (dspy_server_url comes from
+    config, not a flag - see config/stage2_local.yaml).
 
     KNOWN SIMPLIFICATION (see training_loop.py / stage2_wiring.py docstrings): one
     MCTS-informed decision is committed for real per "episode" here, not a full match
     played to a natural conclusion. That's the Stage 3 match-runner's job.
 
-Usage:
-    python scripts/run_phase4_stage2_local.py --judge-model-path /path/to/judge.gguf --episodes 10
+    Stable parameters (judge_model_path, checkpoint_interval, dspy_server_url) live in
+    the --config YAML - see config/stage2_local.yaml. Sweep-worthy parameters
+    (--episodes, --ablation, --real-dspy) stay as CLI flags.
 
-This is intentionally plain argparse (not scripts._script_common.build_run) since I
-don't have that helper's exact interface in front of me - fold this into your usual
-config/run-tracking pattern if you'd rather match run_phase4_training.py's style.
+Usage:
+    python scripts/run_phase4_stage2_local.py --config config/stage2_local.yaml --episodes 10
 """
 from __future__ import annotations
 
@@ -35,6 +36,7 @@ if str(_REPO_ROOT) not in sys.path:
 from src.agents.perception_agent import PerceptionAgent
 from src.agents.schemas import MacroStrategy
 from src.agents.strategy_agent import StrategyAgent
+from scripts._script_common import build_run
 from src.sbso.ablation_strategies import AblationConfig
 from src.sbso.dspy_compiler import MockDSPyCompiler, RealDSPyCompiler
 from src.sbso.judge import LlamaCppJudge
@@ -49,15 +51,21 @@ from src.sbso.training_loop import SBSOTrainer
 from src.simulation.sumo_env import EnvConfig, PyBulletSumoEnv
 
 
+def _add_stage2_local_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--episodes", type=int, default=10)
+    parser.add_argument("--ablation", default="none")
+    parser.add_argument("--real-dspy", action="store_true")
+
+
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--judge-model-path", required=True, help="GGUF path for LlamaCppJudge")
-    ap.add_argument("--episodes", type=int, default=10)
-    ap.add_argument("--checkpoint-interval", type=int, default=5)
-    ap.add_argument("--ablation", default="none")
-    ap.add_argument("--real-dspy", action="store_true")
-    ap.add_argument("--dspy-server-url", default=None, help="e.g. http://127.0.0.1:8080/v1")
-    args = ap.parse_args()
+    config, ctx, args = build_run(
+        phase="phase4_stage2_local", description=__doc__, extra_args=_add_stage2_local_args,
+    )
+    print(f"[stage2] run_id={ctx.run_id}")
+
+    judge_model_path = config["judge_model_path"]
+    checkpoint_interval = int(config.get("checkpoint_interval", 5))
+    dspy_server_url = config.get("dspy_server_url")
 
     ablation = AblationConfig.for_variant(args.ablation)
     strategies = list(MacroStrategy)
@@ -69,7 +77,7 @@ def main() -> None:
     perception_agent.reset()
 
     executor = MacroStrategyExecutor()
-    judge = LlamaCppJudge(model_path=args.judge_model_path)
+    judge = LlamaCppJudge(model_path=judge_model_path)
     backend = PyBulletSimulationBackend(env, executor, judge, cycles_per_node=3)
 
     mcts = MCTS(
@@ -85,13 +93,14 @@ def main() -> None:
     strategy_agent = StrategyAgent(client=None)   # wire a real SLMClient once TEA/OAA/SA run live
 
     if args.real_dspy:
-        if not args.dspy_server_url:
-            raise SystemExit("--real-dspy requires --dspy-server-url (start a llama.cpp server first)")
-        dspy_compiler = RealDSPyCompiler(llama_cpp_api_base=args.dspy_server_url)
+        if not dspy_server_url:
+            raise SystemExit("--real-dspy requires dspy_server_url set in the config "
+                              "(start a llama.cpp server first)")
+        dspy_compiler = RealDSPyCompiler(llama_cpp_api_base=dspy_server_url)
     else:
         dspy_compiler = MockDSPyCompiler()
 
-    checkpoint_mgr = SelfCheckpointManager(interval=args.checkpoint_interval)
+    checkpoint_mgr = SelfCheckpointManager(interval=checkpoint_interval)
     trainer = SBSOTrainer(
         ablation=ablation,
         mcts=mcts,

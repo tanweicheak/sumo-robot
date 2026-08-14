@@ -12,6 +12,20 @@ Purpose: MatchLevelSBSOTrainer runs FULL matches, not single decisions (report S
 
     Timing is instrumented per-decision and per-episode so a pilot run can extrapolate
     real cost/duration for the full 5x5000-episode run before committing to it.
+
+    training_pairs are (episode, state, strategy) triples, not bare (state, strategy)
+    pairs - RealDSPyCompiler._select_examples() needs the episode tag to spread its
+    few-shot selection across multiple matches instead of silently collapsing
+    everything into one pseudo-episode.
+
+    dominant_strategy is computed by RealDSPyCompiler at compile time (from structured
+    demo objects, not text-parsing) and threaded through to checkpoint_mgr so a sampled
+    self-checkpoint opponent's rollout proxy reflects what that checkpoint actually
+    favored, instead of always defaulting to CHARGE.
+
+    on_episode_end, if given, fires after every episode with (episode, self) - lets a
+    caller (e.g. run_phase4_pilot.py) persist progress incrementally without this class
+    needing to know anything about files/paths itself.
 """
 
 from __future__ import annotations
@@ -22,6 +36,7 @@ from collections import deque
 from typing import Any, Callable, Optional
 
 from src.sbso.ablation_strategies import AblationConfig
+from src.preprocessing.ir_gradient import IRGradientFilter
 
 
 class MatchLevelSBSOTrainer:
@@ -42,6 +57,7 @@ class MatchLevelSBSOTrainer:
         decision_cycles: int = 6,
         max_decisions_per_match: int = 50,
         seed: int = 0,
+        on_episode_end: Optional[Callable[[int, "MatchLevelSBSOTrainer"], None]] = None,
     ) -> None:
         self.ablation = ablation
         self.mcts = mcts
@@ -60,13 +76,21 @@ class MatchLevelSBSOTrainer:
         self._rng = random.Random(seed)
         self.training_pairs: list = []
         self.prompt_program = "SA_BASE_PROMPT"
+        self.dominant_strategy: Optional[str] = None
+        self.on_episode_end = on_episode_end
         self._win_history: deque[float] = deque(maxlen=scheduler.window_w)
         self.timing = {"episode_seconds": [], "decision_seconds": []}
+        # Real edge-approach-rate tracking, matching PerceptionAgent's own filter -
+        # previously this was hardcoded to 0.0 (always "edge=safe" regardless of actual
+        # proximity to the ring boundary), which meant training data never showed an
+        # edge=critical example for EVADE_EDGE to learn from at all.
+        self._ir_filter = IRGradientFilter(window_length=5, n_probes=2)
 
     def _lssd_from_env(self) -> str:
         obs = self.env.agent_sensors.read()
         ego = {"fwd": 0.0, "turn": 0.0}   # neutral proxy; full PA ego-motion not needed for MCTS state
-        enc = self.lssd_encoder.encode(obs["tof"], approach_rate=0.0, ego=ego)
+        approach_rate = self._ir_filter.update(obs["ir"])
+        enc = self.lssd_encoder.encode(obs["tof"], approach_rate=approach_rate, ego=ego)
         return enc["lssd_text"]
 
     def _execute_strategy_live(self, strategy) -> Optional[str]:
@@ -95,6 +119,7 @@ class MatchLevelSBSOTrainer:
             opp_type = self.opponent_pool.sample(ep, self.checkpoint_mgr.has_checkpoint())
             self.env.opponent_policy = self.opponent_factory(opp_type)
             self.env.reset()
+            self._ir_filter.reset()
 
             outcome = "draw"
             decisions = 0
@@ -109,11 +134,14 @@ class MatchLevelSBSOTrainer:
                     restore = getattr(self.mcts.backend, "_restore", None)
                     if restore is not None:
                         restore(root_state.pybullet_state_id)   # undo search branching, keep live match intact
-                    self.training_pairs.append(result.training_pair)
+                    # Episode-tagged triple - RealDSPyCompiler._select_examples() needs
+                    # this to spread few-shot selection across matches instead of
+                    # collapsing everything into one pseudo-episode.
+                    self.training_pairs.append((ep, *result.training_pair))
                 else:
                     # No-MCTS ablation: single-pass direct sampling.
                     best = self._rng.choice(self.strategies)
-                    self.training_pairs.append(({"lssd": lssd_text}, best))
+                    self.training_pairs.append((ep, {"lssd": lssd_text}, best))
 
                 match_outcome = self._execute_strategy_live(best)
                 decisions += 1
@@ -129,8 +157,12 @@ class MatchLevelSBSOTrainer:
                 do, _why = self.scheduler.should_recompile(ep, self._rolling_winrate())
                 if do:
                     self.prompt_program = self.dspy_compiler.compile(self.training_pairs, self.prompt_program)
+                    self.dominant_strategy = getattr(self.dspy_compiler, "last_dominant_strategy", None)
 
-            self.checkpoint_mgr.maybe_snapshot(ep, self.prompt_program)
+            self.checkpoint_mgr.maybe_snapshot(ep, self.prompt_program, self.dominant_strategy)
+
+            if self.on_episode_end is not None:
+                self.on_episode_end(ep, self)
 
         total_wall_s = time.perf_counter() - run_t0
         n_ep = max(1, len(self.timing["episode_seconds"]))

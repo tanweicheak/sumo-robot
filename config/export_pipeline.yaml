@@ -1,0 +1,13 @@
+# config/export_pipeline.yaml
+# Stable parameters for run_export_pipeline.py - the base model and toolchain paths,
+# which are the same across every export you'll ever run for this project. Per-export
+# parameters that change with EVERY invocation (--adapter-path, --output-dir,
+# --calibration-texts-file, --skip-gptq) stay as CLI flags on purpose - those identify
+# WHICH trained variant you're exporting right now, which is inherently per-run.
+
+variant_name: export_pipeline
+
+base_model_path: /workspace/models/phi-4-mini-hf
+llama_cpp_convert_script: /workspace/tools/llama.cpp/convert_hf_to_gguf.py
+llama_quantize_binary: null   # null = search PATH
+gguf_quant_type: Q4_K_M

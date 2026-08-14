@@ -1,0 +1,10 @@
+# config/stage2_local.yaml
+# Stable parameters for run_phase4_stage2_local.py - things that rarely change between
+# runs (model/server paths). Sweep-worthy parameters (--episodes, --ablation,
+# --real-dspy) stay as CLI flags - see the script's --help.
+
+variant_name: stage2_local_pilot
+
+judge_model_path: models/llama-3.1-8b-instruct-Q4_K_M.gguf   # GGUF path for LlamaCppJudge
+checkpoint_interval: 5
+dspy_server_url: null   # e.g. http://127.0.0.1:8080/v1 - only read if --real-dspy is passed

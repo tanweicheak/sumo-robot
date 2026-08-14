@@ -14,7 +14,7 @@ lora:
   target_modules: [q_proj, k_proj, v_proj, o_proj]
   learning_rate: 0.0002
   epochs: 3
-  device: mps          # mps (local Mac token-run) | cuda (cloud)
+  device: cuda          # mps (local Mac token-run) | cuda (cloud)
 
 paths:
   lora_output_dir: checkpoints/benchmark2_full_sbso/lora_adapters
@@ -27,5 +27,5 @@ quantization:
   # CLOUD ONLY - see src/finetuning/quantize_gptq.py
 
 gguf_export:
-  llama_cpp_convert_script: null   # path to llama.cpp's convert_hf_to_gguf.py, set per-machine
+  llama_cpp_convert_script: /workspace/tools/llama.cpp/convert_hf_to_gguf.py   # path to llama.cpp's convert_hf_to_gguf.py, set per-machine
   outtype: q4_k_m

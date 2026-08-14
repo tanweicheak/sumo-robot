@@ -12,12 +12,10 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import pybullet as p
-
-from pathlib import Path
-from typing import Any
 
 from src.common.config_loader import load_config
 
@@ -26,6 +24,10 @@ _DEFAULT_ARENA_CONFIG = _REPO_ROOT / "config" / "arena_config.yaml"
 
 @dataclass
 class RobotSpec:
+    # NOTE: total_mass_kg is the WHOLE robot (chassis body + all 4 wheels), even though
+    # it's read from config's `chassis_mass_kg` key - the key name is a bit misleading
+    # in isolation, but build_robot()'s base_mass = total_mass_kg - 4*wheel_mass_kg makes
+    # the actual semantics unambiguous in code.
     total_mass_kg: float = 1.0
     chassis_half_extents: tuple[float, float, float] = (0.10, 0.10, 0.04)
     wheel_radius_m: float = 0.04
@@ -185,4 +187,3 @@ def build_robot(
     # Initialize motors to zero so the robot holds still until commanded.
     robot.apply_pwm(0.0, 0.0)
     return robot
-

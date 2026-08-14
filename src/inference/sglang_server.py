@@ -14,6 +14,7 @@ Purpose: Real SLM backend via SGLang's native HTTP server. Implements the same
 
 from __future__ import annotations
 
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Type
 
@@ -38,6 +39,10 @@ class SGLangSLMClient(SLMClient):
         self.timeout_s = timeout_s
         self.max_concurrency = max_concurrency
         self.call_count = 0
+        # generate_structured_batch() dispatches concurrently via ThreadPoolExecutor -
+        # `self.call_count += 1` is a load/add/store sequence, not a single atomic op,
+        # so concurrent threads could race and lose an increment without this lock.
+        self._call_count_lock = threading.Lock()
 
     def generate_structured(
         self, prompt: str, schema: Type[BaseModel], max_new_tokens: int | None = None, **kwargs
@@ -81,7 +86,8 @@ class SGLangSLMClient(SLMClient):
     def _post(self, payload: dict) -> dict:
         import requests
 
-        self.call_count += 1
+        with self._call_count_lock:
+            self.call_count += 1
         resp = requests.post(f"{self.server_url}/generate", json=payload, timeout=self.timeout_s)
         resp.raise_for_status()
         return resp.json()

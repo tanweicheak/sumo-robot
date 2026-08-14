@@ -1,41 +1,31 @@
-# Sumo-SBSO Framework - dependencies grouped by the phase that first needs them.
-# Phase 0 installs only the top group; heavier stacks install as you reach their phase
-# (many are best installed in a cloud GPU environment per the project brief, not locally).
-#
-# Versions are left unpinned at Phase 0 and will be pinned per-phase once each stack is
-# validated against the target environment.
+# Base dependencies - local Mac dev (Stage 1 mock loop + Stage 2 real-physics token-run).
+# Install with: pip install -r requirements.txt
+# (Standard pip works here - no --break-system-packages needed inside a venv.)
 
-# --- Phase 0 (config, tests, tooling) - install now ---
+# --- schemas / config ---------------------------------------------------------------
+pydantic>=2.0
 pyyaml>=6.0
+
+# --- physics simulation (Phase 1) ----------------------------------------------------
+pybullet>=3.2.5
+pybullet-data>=3.0.9
+gymnasium>=0.29
+numpy>=1.26
+scipy>=1.11   # required by src.preprocessing.savitzky_golay_filter (scipy.signal.savgol_filter)
+
+# --- local SLM inference: Judge + TEA/SA/OAA clients (Phase 3) -----------------------
+llama-cpp-python>=0.2.90
+
+# --- DSPy prompt compilation (Phase 4) ------------------------------------------------
+dspy-ai==3.3.0
+
+# --- SGLang client only (talks to a server over HTTP - the sglang package itself is
+# only needed where the SERVER runs, i.e. RunPod - see requirements-cloud.txt) --------
+requests>=2.31
+
+# --- PPO baseline (Phase 1, Baseline 2) -----------------------------------------------
+stable-baselines3>=2.3
+torch>=2.2   # CPU/MPS build is fine locally; RunPod gets the CUDA build separately
+
+# --- testing ---------------------------------------------------------------------------
 pytest>=8.0
-ruff>=0.5
-
-# --- Phase 1 (simulation + RL baselines) ---
-pybullet
-stable-baselines3
-gymnasium
-numpy
-scipy            # Savitzky-Golay lives here (also used by Phase 2 preprocessing)
-
-# --- Phase 2 (agents, orchestration, schemas) ---
-# pydantic>=2
-# langgraph
-
-# --- Phase 3 (inference infrastructure) ---
-# outlines
-# sglang
-# llama-cpp-python
-
-# --- Phase 4 (SBSO training + fine-tuning/compression) ---
-# dspy-ai
-# transformers
-# peft             # LoRA
-# auto-gptq        # INT4 quantization
-# torch
-# (GGUF export via llama.cpp tooling)
-
-# --- Phase 5 (evaluation + statistics) ---
-# numpy            # (already pulled in Phase 1)
-# scipy            # Mann-Whitney U, bootstrap helpers
-# pandas
-# matplotlib       # KPI dashboards / report tables

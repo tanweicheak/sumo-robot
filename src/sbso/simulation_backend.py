@@ -93,11 +93,18 @@ class PyBulletMCTSState:
 
 
 class PyBulletSimulationBackend(SimulationBackend):
-    def __init__(self, env, executor, judge: Judge, cycles_per_node: int = 3, opponent_policy=None) -> None:
+    def __init__(self, env, executor, judge: Judge, cycles_per_node: int = 3, opponent_policy=None,
+                 judge_enabled: bool = True) -> None:
         self.env = env                      # a live, already-reset PyBulletSumoEnv
         self.executor = executor            # MacroStrategyExecutor
         self.judge = judge
         self.cycles_per_node = cycles_per_node
+        # no_judge ablation: when False, this backend never calls the real judge at all
+        # (not just "doesn't get pruned by it" - the previous fix at the entry-script
+        # level only neutralized judge_prune_threshold, but rollout()'s leaf scoring
+        # called judge.score_position() unconditionally regardless). A neutral constant
+        # is used in both call sites instead - see rollout()/judge_branch() below.
+        self.judge_enabled = judge_enabled
         # D2 fix: default to a fast deterministic proxy, not None. Leaving this None used
         # to mean "env's own opponent_policy runs during rollouts too" - for a self-checkpoint
         # opponent, that opponent_policy may itself be a live-SLM call, which is fatal
@@ -209,6 +216,8 @@ class PyBulletSimulationBackend(SimulationBackend):
             s = self.step(s, MacroStrategy.HOLD)   # neutral proxy during truncated rollout
         if s.terminated:
             value = self._outcome_value(s.outcome)
+        elif not self.judge_enabled:
+            value = 0.5   # no_judge ablation: neutral, uninformative leaf value - never calls the real judge
         else:
             value = self.judge.score_position(s.lssd_text)
         self._restore(state.pybullet_state_id)   # leave the live sim state untouched
@@ -216,6 +225,8 @@ class PyBulletSimulationBackend(SimulationBackend):
         return value
 
     def judge_branch(self, state: PyBulletMCTSState, strategy) -> float:
+        if not self.judge_enabled:
+            return 0.5   # no_judge ablation: neutral - never calls the real judge
         return self.judge.score_branch(state.lssd_text, strategy)
 
     def is_terminal(self, state: PyBulletMCTSState) -> bool:

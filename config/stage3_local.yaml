@@ -1,0 +1,13 @@
+# config/stage3_local.yaml
+# Stable parameters for run_phase4_stage3_local.py - model/server paths and the
+# calibration output location. Sweep-worthy tuning knobs (--episodes, --ablation,
+# --cycles-per-node, --sim-budget, --horizon, --max-decisions-per-match, --real-dspy)
+# stay as CLI flags on purpose - these are exactly the ones you've been varying run to
+# run while tuning local smoke-test speed vs. fidelity.
+
+variant_name: stage3_local_pilot
+
+judge_model_path: models/llama-3.1-8b-instruct-Q4_K_M.gguf
+checkpoint_interval: 1
+dspy_server_url: null   # e.g. http://127.0.0.1:8080/v1 - only read if --real-dspy is passed
+calibration_output: null   # e.g. config/gptq_calibration_texts.txt - set to enable writing it

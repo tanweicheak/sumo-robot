@@ -25,17 +25,11 @@ def enum_choice_grammar(values: list[str]) -> str:
     alternation = " | ".join(f'"{v}"' for v in values)
     return f"root ::= {alternation}\n"
 
-"""
-(append to src/inference/grammar.py)
-
-enum_regex_pattern - regex-alternation constraint for SGLang (which does NOT consume
-GBNF). Same purpose as enum_choice_grammar: force output to exactly one enum value.
-Longest-first ordering prevents a short value (e.g. "charge") from short-matching a
-prefix of a longer one (e.g. "charge_forward") during alternation.
-"""
-
-
 def enum_regex_pattern(values: list[str]) -> str:
+    """Regex-alternation constraint for SGLang (which does NOT consume GBNF). Same
+    purpose as enum_choice_grammar: force output to exactly one enum value.
+    Longest-first ordering prevents a short value (e.g. "charge") from short-matching
+    a prefix of a longer one (e.g. "charge_forward") during alternation."""
     if not values:
         raise ValueError("enum_regex_pattern requires at least one value")
     ordered = sorted(values, key=len, reverse=True)

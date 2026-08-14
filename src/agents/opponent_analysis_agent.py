@@ -22,7 +22,14 @@ _OAA_SYSTEM = (
 
 
 def build_oaa_prompt(lssd_history: list[str]) -> str:
-    history_block = "\n".join(f"  t-{i}: {s}" for i, s in enumerate(reversed(lssd_history)))
+    n = len(lssd_history)
+    # lssd_history is oldest-first (perception_node appends the newest to the end).
+    # Render chronologically (oldest first, most recent last), matching what the header
+    # below claims - t-0 is the most recent, and it now genuinely appears LAST, not
+    # first. (Previously this used reversed(), which put the newest entry first while
+    # the header still said "most recent last" - a direct contradiction the LLM would
+    # have been reading.)
+    history_block = "\n".join(f"  t-{n - 1 - i}: {s}" for i, s in enumerate(lssd_history))
     return (
         f"{_OAA_SYSTEM}\n\n"
         f"State history (most recent last):\n{history_block}\n\n"
