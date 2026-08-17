@@ -7,6 +7,7 @@
 
 variant_name: stage3_local_pilot
 
+# judge_model_path: models/phi-4-mini-Q4_K_M.gguf
 judge_model_path: models/llama-3.1-8b-instruct-Q4_K_M.gguf
 checkpoint_interval: 1
 dspy_server_url: null   # e.g. http://127.0.0.1:8080/v1 - only read if --real-dspy is passed

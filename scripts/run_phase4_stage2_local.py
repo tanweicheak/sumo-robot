@@ -119,7 +119,7 @@ def main() -> None:
     )
 
     print(f"[stage2] starting {args.episodes} real-physics episodes "
-          f"(judge={args.judge_model_path}, real_dspy={args.real_dspy})")
+          f"(judge={judge_model_path}, real_dspy={args.real_dspy})")
     t0 = time.monotonic()
     summary = trainer.run()
     wall_clock_s = time.monotonic() - t0

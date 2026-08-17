@@ -5,6 +5,7 @@
 
 variant_name: stage2_local_pilot
 
-judge_model_path: models/llama-3.1-8b-instruct-Q4_K_M.gguf   # GGUF path for LlamaCppJudge
+# judge_model_path: models/phi-4-mini-Q4_K_M.gguf
+judge_model_path: models/llama-3.1-8b-instruct-Q4_K_M.gguf  # GGUF path for LlamaCppJudge
 checkpoint_interval: 5
 dspy_server_url: null   # e.g. http://127.0.0.1:8080/v1 - only read if --real-dspy is passed

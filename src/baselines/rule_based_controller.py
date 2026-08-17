@@ -137,6 +137,18 @@ class RuleBasedController:
     _search_timer: int = 0
     _prev_offset: float | None = None   # last attack offset, for lead prediction
 
+    def __post_init__(self) -> None:
+        # The dataclass field defaults above (_search_timer=0 especially) are NOT a
+        # valid standalone state on their own - reset() is what actually computes the
+        # real starting values (e.g. _search_timer = params.search_spin_cycles, not 0).
+        # Calling it here means ANY construction path (direct, or via
+        # make_rule_based_policy()) ends up correctly initialized, instead of relying
+        # on the caller to remember a separate .reset() call - a bare
+        # RuleBasedController() used to start with _search_timer=0, which made the very
+        # first _search() call immediately "expire" the spin phase and jump straight to
+        # creep, instead of genuinely starting in spin as intended.
+        self.reset()
+
     def reset(self) -> None:
         self.state = RuleState.SEARCH
         self._edge_phase = "idle"
