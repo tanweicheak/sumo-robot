@@ -15,6 +15,6 @@ opponent_pool:
     self_checkpoint: 1666
 
 dspy_recompilation:               # PLACEHOLDER - pilot calibration pending (plan #10)
-  k_rollout_batches: 5         # trigger (a): recompile every K batches
+  k_rollout_batches: 500         # trigger (a): recompile every K batches
   reward_drop_threshold_delta: 0.05   # trigger (b): rolling mean reward drop > delta
-  rolling_window_w: 10              # window size for trigger (b)
+  rolling_window_w: 100              # window size for trigger (b)

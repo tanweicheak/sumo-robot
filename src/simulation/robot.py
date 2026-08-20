@@ -169,8 +169,20 @@ def build_robot(
         physicsClientId=client_id,
     )
 
-    left_joints = [0, 2]   # front-left, back-left
-    right_joints = [1, 3]  # front-right, back-right
+    # left_wheel_joints/right_wheel_joints are assigned by CONTROL-CONVENTION
+    # ("which bank does apply_pwm's left_pwm arg drive"), not by mount geometry.
+    # tests/unit/test_wheel_turn_direction.py empirically measured real yaw under
+    # PyBulletSumoEnv's actual reset()/step() path (platform + settle + gravity,
+    # not a floating robot) and found apply_pwm(left=-1, right=+1) produces a
+    # strong, consistent, clearly-signed yaw in the OPPOSITE direction every
+    # steering consumer (rule_based_controller.py's attack lead term,
+    # adversarial_bait_controller.py's lure centering steer, any future
+    # TacticalCommand PWM output) assumes. Straight-line motion (symmetric PWM)
+    # is unaffected by which physical mount is labeled "left" vs "right", so this
+    # swap is the correct, minimal fix - it does not touch jointAxis, wheel_orn,
+    # or any caller.
+    left_joints = [1, 3]   # front-right, back-right mounts -> drives as the LEFT PWM bank
+    right_joints = [0, 2]  # front-left, back-left mounts -> drives as the RIGHT PWM bank
 
     for j in range(n):
         p.changeDynamics(

@@ -18,6 +18,7 @@ import argparse
 from pathlib import Path
 from typing import Callable
 
+
 from src.common.config_loader import load_config
 from src.common.run_context import RunContext
 
@@ -53,4 +54,3 @@ def build_run(
         print(f"[{phase}] run_id={ctx.run_id} (no --results-dir given; metadata not persisted)")
 
     return config, ctx, args
-

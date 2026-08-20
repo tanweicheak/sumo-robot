@@ -213,16 +213,31 @@ class PyBulletSumoEnv(gym.Env):
         self._step_count += 1
         obs = self.agent_sensors.read()
 
-        agent_pos, _ = self.agent.base_pose()
-        opp_pos, _ = self.opponent.base_pose()
-        agent_out = self.dohyo.is_outside(agent_pos) or self.dohyo.has_fallen(agent_pos)
-        opp_out = self.dohyo.is_outside(opp_pos) or self.dohyo.has_fallen(opp_pos)
+        agent_pos, agent_orn = self.agent.base_pose()
+        opp_pos, opp_orn = self.opponent.base_pose()
+
+        def _out_reason(pos, orn) -> str | None:
+            if self.dohyo.is_outside(pos):
+                return "pushed_out"
+            if self.dohyo.has_fallen(pos):
+                return "fell_off_edge"
+            if self.dohyo.has_capsized(orn):
+                return "capsized"
+            return None
+
+        agent_out_reason = _out_reason(agent_pos, agent_orn)
+        opp_out_reason = _out_reason(opp_pos, opp_orn)
+        agent_out = agent_out_reason is not None
+        opp_out = opp_out_reason is not None
 
         terminated = agent_out or opp_out
         truncated = self._step_count >= self.max_steps
 
         reward, outcome = self._compute_reward(agent_pos, opp_pos, agent_out, opp_out, truncated)
-        info = {"outcome": outcome, "agent_pos": agent_pos, "opponent_pos": opp_pos, "steps": self._step_count}
+        info = {
+            "outcome": outcome, "agent_pos": agent_pos, "opponent_pos": opp_pos, "steps": self._step_count,
+            "agent_out_reason": agent_out_reason, "opponent_out_reason": opp_out_reason,
+        }
         return obs, reward, terminated, truncated, info
     def _compute_reward(self, agent_pos, opp_pos, agent_out, opp_out, truncated):
         # Terminal outcomes dominate (large magnitude vs. per-step shaping).

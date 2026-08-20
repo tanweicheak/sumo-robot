@@ -24,8 +24,8 @@ lssd_thresholds:
     near_max              : 20      # 0-20cm -> "near"
     mid_max               : 60      # 20-60cm -> "mid"; >60cm -> "far"
   edge_approach_rate:
-    stable_max            : 0.1     # normalized rate-of-approach units, PLACEHOLDER
-    approaching_max       : 0.5     # above this -> "critical"
+    stable_max            : 0.5     # TBC - normalized rate-of-approach units, PLACEHOLDER
+    approaching_max       : 2.5     # TBC - above this -> "critical"
 
 episode:
   sim_timestep_s: 0.00416666667           # 1/240 s

@@ -14,7 +14,7 @@ from scripts._script_common import build_run
 
 
 def main() -> None:
-    config, ctx = build_run(phase="phase4", description="Phase 4: run a single ablation variant (No-SA / No-MCTS / No-DSPy / No-Judge).")
+    config, ctx, _args = build_run(phase="phase4", description="Phase 4: run a single ablation variant (No-SA / No-MCTS / No-DSPy / No-Judge).")
     print("[phase4] config + run context ready. Phase logic not yet implemented.")
     # TODO(Phase 4): implement the phase workflow here.
 

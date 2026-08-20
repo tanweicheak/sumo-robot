@@ -11,7 +11,7 @@ judge_model_path: models/llama-3.1-8b-instruct-Q4_K_M.gguf   # download separate
 lora:
   rank: 16
   alpha: 32
-  target_modules: [q_proj, k_proj, v_proj, o_proj]
+  target_modules: [qkv_proj, o_proj, gate_up_proj, down_proj]  # Phi-3/Phi-4-mini fused attn/MLP proj names
   learning_rate: 0.0002
   epochs: 3
   device: cuda          # mps (local Mac token-run) | cuda (cloud)

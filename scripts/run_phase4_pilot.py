@@ -128,13 +128,20 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     progress_path = out_dir / "progress.json"
     pairs_path = out_dir / "training_pairs.jsonl"
+    prompt_history_path = out_dir / "prompt_history.jsonl"
+    calibration_path = out_dir / "mcts_calibration.jsonl"
     pairs_file = pairs_path.open("a")
-    print(f"[pilot] progress -> {progress_path}   training_pairs -> {pairs_path}")
+    prompt_history_file = prompt_history_path.open("a")
+    calibration_file = calibration_path.open("a")
+    print(f"[pilot] progress -> {progress_path}   training_pairs -> {pairs_path}   "
+          f"prompt_history -> {prompt_history_path}   mcts_calibration -> {calibration_path}")
 
     pairs_written = 0
+    recompiles_written = 0
+    calibration_written = 0
 
     def _on_episode_end(ep: int, trainer: MatchLevelSBSOTrainer) -> None:
-        nonlocal pairs_written
+        nonlocal pairs_written, recompiles_written, calibration_written
         # Write only the pairs collected since the last call (incremental, crash-safe -
         # training_pairs accumulates for the whole run, so this avoids rewriting
         # everything from scratch every episode).
@@ -144,6 +151,20 @@ def main() -> None:
             pairs_file.write(json.dumps({"episode": tagged_ep, "lssd_text": text, "strategy": strat}) + "\n")
         pairs_written = len(trainer.training_pairs)
         pairs_file.flush()
+
+        # Record which prompt version was active over which episode range and why each
+        # recompile fired - previously computed (should_recompile's reason) then thrown
+        # away, so there was no way to answer "which prompt made this decision" or
+        # "how many times did trigger (a) vs (b) actually fire" after a run finished.
+        for event in trainer.recompile_history[recompiles_written:]:
+            prompt_history_file.write(json.dumps(event) + "\n")
+        recompiles_written = len(trainer.recompile_history)
+        prompt_history_file.flush()
+
+        for entry in trainer.mcts_calibration_log[calibration_written:]:
+            calibration_file.write(json.dumps(entry) + "\n")
+        calibration_written = len(trainer.mcts_calibration_log)
+        calibration_file.flush()
 
         if (ep + 1) % checkpoint_interval == 0 or ep == 0:
             progress_path.write_text(json.dumps({
@@ -183,6 +204,8 @@ def main() -> None:
           f"real Judge, real DSPy)... this will take a while.")
     summary = trainer.run()
     pairs_file.close()
+    prompt_history_file.close()
+    calibration_file.close()
     env.close()
     print(f"[pilot] summary: {summary}")
 

@@ -16,14 +16,14 @@ Stages (each additive, gate with flags to control cost/latency):
 
 Examples:
     # Cheapest: real physics + real MCTS, mock judge, mock dspy. Seconds.
-    python -m scripts.run_stage2_token_run --episodes 2 --sim-budget 5
+    python -m scripts.run_phase4_stage2_token_run --episodes 2 --sim-budget 5
 
     # Add the real judge (slow - expect minutes for a handful of calls).
-    python -m scripts.run_stage2_token_run --episodes 1 --sim-budget 3 \
+    python -m scripts.run_phase4_stage2_token_run --episodes 1 --sim-budget 3 \
         --use-real-judge --judge-model-path models/llama-3.1-8b-instruct-Q4_K_M.gguf
 
     # Full local proof including a tiny real LoRA fine-tune.
-    python -m scripts.run_stage2_token_run --episodes 1 --sim-budget 3 \
+    python -m scripts.run_phase4_stage2_token_run --episodes 1 --sim-budget 3 \
         --use-real-judge --judge-model-path models/llama-3.1-8b-instruct-Q4_K_M.gguf \
         --run-lora --hf-model-path models/phi-4-mini-hf
 """
@@ -35,6 +35,7 @@ from pathlib import Path
 
 from src.agents.schemas import MacroStrategy
 from src.baselines.rule_based_controller import make_rule_based_policy
+from src.common.config_loader import load_config
 from src.sbso.ablation_strategies import AblationConfig
 from src.sbso.dspy_compiler import MockDSPyCompiler
 from src.sbso.judge import MockJudge
@@ -61,6 +62,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--run-lora", action="store_true")
     p.add_argument("--hf-model-path", default=None)
     p.add_argument("--lora-device", default="mps")
+    p.add_argument("--finetuning-config", default="config/finetuning.yaml",
+                    help="Stable LoRA hyperparams (rank/alpha/target_modules/learning_rate). "
+                         "epochs and device stay CLI-controlled for this token-run.")
     p.add_argument("--output-dir", default="checkpoints/stage2_token_run")
     return p
 
@@ -154,8 +158,14 @@ def main() -> None:
     print(f"[stage2] {len(sft_records)} SFT record(s). Running a tiny real LoRA fine-tune "
           f"(device={args.lora_device})...")
 
+    ft_config = load_config(args.finetuning_config)
+    lora_cfg = ft_config.get("lora", {})
     tuner = LoRAFineTuner(
         base_model_path=args.hf_model_path, output_dir=out_dir / "lora_run",
+        rank=int(lora_cfg.get("rank", 16)),
+        alpha=int(lora_cfg.get("alpha", 32)),
+        target_modules=lora_cfg.get("target_modules"),
+        learning_rate=float(lora_cfg.get("learning_rate", 2e-4)),
         epochs=1, device=args.lora_device,
     )
     adapter_path = tuner.run(sft_records)

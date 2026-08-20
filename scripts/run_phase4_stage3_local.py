@@ -112,17 +112,31 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     progress_path = out_dir / "progress.json"
     pairs_path = out_dir / "training_pairs.jsonl"
+    prompt_history_path = out_dir / "prompt_history.jsonl"
+    calibration_path = out_dir / "mcts_calibration.jsonl"
     pairs_file = pairs_path.open("a")
+    prompt_history_file = prompt_history_path.open("a")
+    calibration_file = calibration_path.open("a")
     pairs_written = 0
+    recompiles_written = 0
+    calibration_written = 0
 
     def _on_episode_end(ep: int, trainer: MatchLevelSBSOTrainer) -> None:
-        nonlocal pairs_written
+        nonlocal pairs_written, recompiles_written, calibration_written
         for tagged_ep, state, strategy in trainer.training_pairs[pairs_written:]:
             text = state.get("lssd", "") if isinstance(state, dict) else getattr(state, "lssd_text", "")
             strat = strategy.value if hasattr(strategy, "value") else str(strategy)
             pairs_file.write(json.dumps({"episode": tagged_ep, "lssd_text": text, "strategy": strat}) + "\n")
         pairs_written = len(trainer.training_pairs)
         pairs_file.flush()
+        for event in trainer.recompile_history[recompiles_written:]:
+            prompt_history_file.write(json.dumps(event) + "\n")
+        recompiles_written = len(trainer.recompile_history)
+        prompt_history_file.flush()
+        for entry in trainer.mcts_calibration_log[calibration_written:]:
+            calibration_file.write(json.dumps(entry) + "\n")
+        calibration_written = len(trainer.mcts_calibration_log)
+        calibration_file.flush()
         if (ep + 1) % checkpoint_interval == 0 or ep == 0:
             progress_path.write_text(json.dumps({
                 "episode": ep,
@@ -157,6 +171,8 @@ def main() -> None:
           f"(judge={judge_model_path}, real_dspy={args.real_dspy})")
     summary = trainer.run()
     pairs_file.close()
+    prompt_history_file.close()
+    calibration_file.close()
     env.close()
     print(f"[stage3-local] summary={summary}")
     print(f"[stage3-local] judge.call_count={judge.call_count}")

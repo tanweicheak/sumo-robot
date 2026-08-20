@@ -14,7 +14,7 @@ from scripts._script_common import build_run
 
 
 def main() -> None:
-    config, ctx = build_run(phase="phase5c", description="Phase 5c: real-sensor-noise validation under HEL (empirical data pending).")
+    config, ctx, _args = build_run(phase="phase5c", description="Phase 5c: real-sensor-noise validation under HEL (empirical data pending).")
     print("[phase5c] config + run context ready. Phase logic not yet implemented.")
     # TODO(Phase 5C): implement the phase workflow here.
 

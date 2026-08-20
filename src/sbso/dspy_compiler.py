@@ -170,3 +170,62 @@ class RealDSPyCompiler(DSPyCompiler):
             return None
         counts = Counter(d.strategy for d in demos)
         return counts.most_common(1)[0][0]   # plain string, e.g. "charge" - matches MacroStrategy.value
+
+
+def validate_prompt_candidate(
+    candidate_prompt: str,
+    incumbent_prompt: str,
+    training_pairs: list,
+    slm_client,
+    judge,
+    n_samples: int = 30,
+    accept_margin: float = 0.0,
+    seed: int = 0,
+) -> dict:
+    """State-replay validation for a newly-compiled DSPy prompt, before committing it
+    live. Deliberately does NOT play new match episodes (that would inflate episode
+    count past the planned total) - instead re-runs SA inference on a small sample of
+    ALREADY-COLLECTED states from training_pairs (no new physics), under both the
+    incumbent and candidate prompt, and compares mean Judge score. Only the two
+    prompts and a handful of extra inference calls are new; no new PyBullet episodes
+    are involved anywhere in this function.
+
+    Returns {"accept": bool, "incumbent_mean_score": float, "candidate_mean_score": float,
+    "n_samples": int} - caller (match_trainer.py's recompile block) decides whether to
+    replace self.prompt_program based on "accept".
+    """
+    import random
+
+    from src.agents.schemas import DirectionLabel, DistanceLabel, EdgeLabel, MomentumLabel, PerceptionState
+    from src.agents.strategy_agent import StrategyAgent
+
+    rng = random.Random(seed)
+    sample = rng.sample(training_pairs, min(n_samples, len(training_pairs)))
+
+    incumbent_agent = StrategyAgent(client=slm_client, prompt_program=incumbent_prompt)
+    candidate_agent = StrategyAgent(client=slm_client, prompt_program=candidate_prompt)
+
+    incumbent_scores, candidate_scores = [], []
+    for _episode, state, _strategy in sample:
+        lssd_text = state.get("lssd", "") if isinstance(state, dict) else getattr(state, "lssd_text", "")
+        # Only lssd_text is actually read by build_sa_prompt() - the other
+        # PerceptionState fields are structurally required but not consulted for
+        # this prompt, so neutral placeholders here don't affect the comparison.
+        perception = PerceptionState(
+            lssd_text=lssd_text, opp_distance=DistanceLabel.MID, opp_direction=DirectionLabel.CENTER,
+            edge=EdgeLabel.SAFE, momentum=MomentumLabel.STABLE, opp_distance_m=1.0,
+        )
+        incumbent_decision = incumbent_agent.decide(perception, prev_oaa=None)
+        candidate_decision = candidate_agent.decide(perception, prev_oaa=None)
+        incumbent_scores.append(judge.score_branch(lssd_text, incumbent_decision.strategy))
+        candidate_scores.append(judge.score_branch(lssd_text, candidate_decision.strategy))
+
+    incumbent_mean = sum(incumbent_scores) / len(incumbent_scores) if incumbent_scores else 0.0
+    candidate_mean = sum(candidate_scores) / len(candidate_scores) if candidate_scores else 0.0
+
+    return {
+        "accept": candidate_mean >= incumbent_mean - accept_margin,
+        "incumbent_mean_score": round(incumbent_mean, 4),
+        "candidate_mean_score": round(candidate_mean, 4),
+        "n_samples": len(sample),
+    }

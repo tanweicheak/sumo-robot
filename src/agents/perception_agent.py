@@ -35,10 +35,11 @@ class PerceptionAgent:
         tof_num_rays: int = 7,
         n_ir_probes: int = 2,
         detect_range_m: float = 1.4,
+        control_dt_s: float = 0.05,
     ) -> None:
         self.detect_range_m = detect_range_m
         self.tof_filter = SavitzkyGolayFilter(window_length=7, polyorder=2, n_channels=tof_num_rays)
-        self.ir_filter = IRGradientFilter(window_length=5, n_probes=n_ir_probes)
+        self.ir_filter = IRGradientFilter(window_length=5, n_probes=n_ir_probes, dt_s=control_dt_s)
         self.motor_filter = MotorDeadbandFilter(deadband=0.05)
         self.lssd = (
             LSSDEncoder.from_config(config_path, tof_num_rays=tof_num_rays)

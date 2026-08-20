@@ -120,6 +120,22 @@ class Dohyo:
         """Backstop for the edge test: body dropped well below the platform top."""
         return position[2] < self.spec.platform_top_z - 0.05
 
+    def has_capsized(self, orientation: tuple[float, float, float, float], max_tilt_rad: float = 1.0) -> bool:
+        """True once the chassis has tipped past max_tilt_rad (default ~57 deg) from
+        upright, whether or not it has left the platform or dropped in z. A robot
+        pushed hard enough to tip onto its end/side while still ON the platform
+        keeps roughly the same z-height and stays within the ring radius, so neither
+        has_fallen() nor is_outside() ever catches it - confirmed via a real match
+        where the agent visibly capsized (see GUI screenshot) and the episode then
+        ran for hundreds more steps as "ongoing" with the agent sliding around
+        incapacitated, timing out to a draw that reflects a physics event, not a
+        tactical outcome. Real sumo rules treat a capsize as ending the match; this
+        mirrors that instead of silently missing it. max_tilt_rad=1.0 (~57 deg) is a
+        starting point - tune once you have a feel for how much lean is "still
+        fighting" vs. "actually tipped over" from watching a few real matches."""
+        roll, pitch, _yaw = p.getEulerFromQuaternion(orientation)
+        return abs(roll) > max_tilt_rad or abs(pitch) > max_tilt_rad
+
     def distance_to_edge(self, position: tuple[float, float, float]) -> float:
         """Signed distance from body center to the ring edge (positive = inside)."""
         x, y, _ = position

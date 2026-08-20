@@ -14,9 +14,11 @@ from typing import Any
 
 
 def build_sft_dataset(training_pairs: list, prompt_template: str) -> list[dict]:
-    """Convert (state, strategy) pairs from SBSOTrainer into prompt/completion records."""
+    """Convert (episode, state, strategy) triples from SBSOTrainer into prompt/completion
+    records. training_pairs is episode-tagged (see match_trainer.py / training_loop.py);
+    episode is not needed for SFT record construction and is discarded here."""
     records = []
-    for state, strategy in training_pairs:
+    for _episode, state, strategy in training_pairs:
         state_desc = state.get("lssd", "") if isinstance(state, dict) else getattr(state, "lssd_text", "")
         strat_value = strategy.value if hasattr(strategy, "value") else str(strategy)
         records.append({"prompt": prompt_template.format(state=state_desc), "completion": strat_value})
@@ -39,7 +41,12 @@ class LoRAFineTuner:
         self.output_dir = Path(output_dir)
         self.rank = rank
         self.alpha = alpha
-        self.target_modules = target_modules or ["q_proj", "k_proj", "v_proj", "o_proj"]
+        # Phi-3/Phi-4-mini's HF implementation fuses Q/K/V into one qkv_proj and gate/up
+        # into one gate_up_proj (no separate q_proj/k_proj/v_proj exist on this
+        # architecture). PEFT has no built-in auto-target mapping for phi3/phi4, and
+        # since o_proj alone does exist, the old Llama-style default silently attached
+        # LoRA to o_proj only and skipped Q/K/V adaptation entirely, with no error.
+        self.target_modules = target_modules or ["qkv_proj", "o_proj", "gate_up_proj", "down_proj"]
         self.learning_rate = learning_rate
         self.epochs = epochs
         self.device = device

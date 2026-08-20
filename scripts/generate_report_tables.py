@@ -14,7 +14,7 @@ from scripts._script_common import build_run
 
 
 def main() -> None:
-    config, ctx = build_run(phase="reporting", description="Phase 6: regenerate thesis KPI tables from results/.")
+    config, ctx, _args = build_run(phase="reporting", description="Phase 6: regenerate thesis KPI tables from results/.")
     print("[reporting] config + run context ready. Phase logic not yet implemented.")
     # TODO(Reporting): implement the phase workflow here.
 

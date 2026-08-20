@@ -58,6 +58,10 @@ class MatchLevelSBSOTrainer:
         max_decisions_per_match: int = 50,
         seed: int = 0,
         on_episode_end: Optional[Callable[[int, "MatchLevelSBSOTrainer"], None]] = None,
+        slm_client: Any = None,
+        validate_recompiles: bool = False,
+        validation_n_samples: int = 30,
+        validation_accept_margin: float = 0.0,
     ) -> None:
         self.ablation = ablation
         self.mcts = mcts
@@ -76,15 +80,22 @@ class MatchLevelSBSOTrainer:
         self._rng = random.Random(seed)
         self.training_pairs: list = []
         self.prompt_program = "SA_BASE_PROMPT"
+        self.prompt_version = 0
+        self.recompile_history: list[dict] = []
+        self.mcts_calibration_log: list[dict] = []
         self.dominant_strategy: Optional[str] = None
         self.on_episode_end = on_episode_end
+        self.slm_client = slm_client
+        self.validate_recompiles = validate_recompiles
+        self.validation_n_samples = validation_n_samples
+        self.validation_accept_margin = validation_accept_margin
         self._win_history: deque[float] = deque(maxlen=scheduler.window_w)
         self.timing = {"episode_seconds": [], "decision_seconds": []}
         # Real edge-approach-rate tracking, matching PerceptionAgent's own filter -
         # previously this was hardcoded to 0.0 (always "edge=safe" regardless of actual
         # proximity to the ring boundary), which meant training data never showed an
         # edge=critical example for EVADE_EDGE to learn from at all.
-        self._ir_filter = IRGradientFilter(window_length=5, n_probes=2)
+        self._ir_filter = IRGradientFilter(window_length=5, n_probes=2, dt_s=self.env.cfg.control_dt_s)
 
     def _lssd_from_env(self) -> str:
         obs = self.env.agent_sensors.read()
@@ -123,6 +134,7 @@ class MatchLevelSBSOTrainer:
 
             outcome = "draw"
             decisions = 0
+            episode_calibration_buffer: list[dict] = []
             while decisions < self.max_decisions_per_match:
                 dec_t0 = time.perf_counter()
                 lssd_text = self._lssd_from_env()
@@ -138,6 +150,21 @@ class MatchLevelSBSOTrainer:
                     # this to spread few-shot selection across matches instead of
                     # collapsing everything into one pseudo-episode.
                     self.training_pairs.append((ep, *result.training_pair))
+
+                    # Shared MCTS-proxy-drift / Judge-calibration diagnostic: root_stats'
+                    # mean_value for the CHOSEN strategy is exactly the value the search
+                    # computed against the scripted proxy opponent (and, when a rollout
+                    # doesn't terminate, is largely the Judge's own score_position output
+                    # backpropagated up) - i.e. "how good MCTS predicted this choice would
+                    # be." Logged here, matched against the real eventual match outcome
+                    # once it's known (below), with NO extra simulation or judge calls -
+                    # this is free instrumentation on data already computed.
+                    strat_key = best.value if hasattr(best, "value") else str(best)
+                    episode_calibration_buffer.append({
+                        "decision_index": decisions,
+                        "chosen_strategy": strat_key,
+                        "proxy_predicted_value": result.root_stats.get(strat_key),
+                    })
                 else:
                     # No-MCTS ablation: single-pass direct sampling.
                     best = self._rng.choice(self.strategies)
@@ -150,14 +177,51 @@ class MatchLevelSBSOTrainer:
                     outcome = match_outcome
                     break
 
+            outcome_value = {"win": 1.0, "draw": 0.5, "loss": 0.0}.get(outcome, 0.5)
+            for entry in episode_calibration_buffer:
+                entry["episode"] = ep
+                entry["match_outcome"] = outcome
+                entry["match_outcome_value"] = outcome_value
+            self.mcts_calibration_log.extend(episode_calibration_buffer)
+
             self._win_history.append(1.0 if outcome == "win" else 0.0)
             self.timing["episode_seconds"].append(time.perf_counter() - ep_t0)
 
             if self.ablation.dspy_enabled:
-                do, _why = self.scheduler.should_recompile(ep, self._rolling_winrate())
+                do, why = self.scheduler.should_recompile(ep, self._rolling_winrate())
                 if do:
-                    self.prompt_program = self.dspy_compiler.compile(self.training_pairs, self.prompt_program)
-                    self.dominant_strategy = getattr(self.dspy_compiler, "last_dominant_strategy", None)
+                    candidate_prompt = self.dspy_compiler.compile(self.training_pairs, self.prompt_program)
+                    candidate_dominant_strategy = getattr(self.dspy_compiler, "last_dominant_strategy", None)
+
+                    validation = None
+                    accepted = True
+                    if self.validate_recompiles and self.slm_client is not None:
+                        from src.sbso.dspy_compiler import validate_prompt_candidate
+                        validation = validate_prompt_candidate(
+                            candidate_prompt=candidate_prompt, incumbent_prompt=self.prompt_program,
+                            training_pairs=self.training_pairs, slm_client=self.slm_client,
+                            judge=self.mcts.backend.judge, n_samples=self.validation_n_samples,
+                            accept_margin=self.validation_accept_margin,
+                        )
+                        accepted = validation["accept"]
+
+                    if accepted:
+                        self.prompt_program = candidate_prompt
+                        self.dominant_strategy = candidate_dominant_strategy
+                        self.prompt_version += 1
+                    # Was previously discarded (`_why`) - no record anywhere of which prompt
+                    # version was active over which episode range, or why a given recompile
+                    # fired. Joins with training_pairs.jsonl by episode number post-hoc
+                    # (see scripts/report_strategy_distribution.py --prompt-history) rather
+                    # than changing training_pairs' tuple shape, which multiple consumers
+                    # (build_sft_dataset, RealDSPyCompiler._select_examples) already depend
+                    # on being exactly (episode, state, strategy).
+                    self.recompile_history.append({
+                        "episode": ep, "trigger_reason": why,
+                        "prompt_version": self.prompt_version if accepted else self.prompt_version + 1,
+                        "rolling_winrate": self._rolling_winrate(),
+                        "accepted": accepted, "validation": validation,
+                    })
 
             self.checkpoint_mgr.maybe_snapshot(ep, self.prompt_program, self.dominant_strategy)
 
