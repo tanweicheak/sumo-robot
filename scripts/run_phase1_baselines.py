@@ -28,12 +28,16 @@ from pathlib import Path
 
 import gymnasium as gym
 import numpy as np
+import wandb
+import logging
 
-from scripts._script_common import build_run
+from scripts._script_common import build_run, setup_logging
 from src.baselines.ppo_controller import FlattenSumoObs
 from src.baselines.rule_based_controller import make_randomized_opponent_factory, make_rule_based_policy
 from src.simulation.sumo_env import EnvConfig, PyBulletSumoEnv
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class RandomizedOpponentWrapper(gym.Wrapper):
     """Assigns a fresh, freshly-.reset() opponent to the underlying PyBulletSumoEnv on
@@ -85,6 +89,14 @@ def main() -> None:
 
     out_dir = Path(train_cfg["checkpoint_output_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
+    logger = setup_logging(out_dir, name="phase1")
+
+    use_wandb = bool(train_cfg.get("use_wandb", False))
+    if use_wandb:
+        import wandb
+        wandb.init(project="sumo-sbso", name=f"ppo-{ctx.run_id}", config=config, sync_tensorboard=True)
+        logger.info("wandb enabled - project=sumo-sbso run=%s (sync_tensorboard=True picks up the "
+                     "existing tensorboard_log automatically, no separate PPO-side change needed)", ctx.run_id)
 
     # Training env: shaping ON (edge-pushing), physics from arena_config.yaml.
     train_env_cfg = EnvConfig.from_config(
@@ -95,13 +107,12 @@ def main() -> None:
     n_envs = int(train_cfg["n_envs"])
     randomize_opponent = bool(train_cfg.get("randomize_opponent", True))
     if randomize_opponent:
-        print("[phase1] opponent diversity: ON - training against randomized rule-based "
+        logger.info("opponent diversity: ON - training against randomized rule-based "
               "opponents (RuleBasedParams.randomized()), re-sampled every episode.")
         opponent_factory = make_randomized_opponent_factory(seed=int(train_cfg["seed"]))
     else:
-        print("[phase1] opponent diversity: OFF (training.randomize_opponent=false) - "
-              "fixed default RuleBasedParams every episode (the per-episode reset fix "
-              "still applies either way - that part isn't the experimental variant).")
+        logger.info("opponent diversity: OFF (training.randomize_opponent=false) - "
+                        "fixed default RuleBasedParams every episode.")
         opponent_factory = make_rule_based_policy
     venv = DummyVecEnv([_make_env_fn(train_env_cfg, opponent_factory) for _ in range(n_envs)])
     venv = VecNormalize(
@@ -131,20 +142,20 @@ def main() -> None:
     )
 
     total_steps = int(train_cfg["total_timesteps"])
-    print(f"[phase1] training PPO for {total_steps} steps on {n_envs} env(s)...")
+    logger.info(f"training PPO for {total_steps} steps on {n_envs} env(s)...")
     model.learn(total_timesteps=total_steps, progress_bar=True)
 
     model_path = out_dir / "ppo_baseline2.zip"
     vecnorm_path = out_dir / "vecnormalize.pkl"
     model.save(str(model_path))
     venv.save(str(vecnorm_path))
-    print(f"[phase1] saved model -> {model_path}")
-    print(f"[phase1] saved vecnormalize -> {vecnorm_path}")
+    logger.info(f"saved model -> {model_path}")
+    logger.info(f"saved vecnormalize -> {vecnorm_path}")
 
-    _sanity_eval(train_env_cfg, model_path, vecnorm_path, int(eval_cfg["n_eval_episodes"]))
+    _sanity_eval(train_env_cfg, model_path, vecnorm_path, int(eval_cfg["n_eval_episodes"]),use_wandb=use_wandb)
 
 
-def _sanity_eval(train_env_cfg, model_path, vecnorm_path, n_eval) -> None:
+def _sanity_eval(train_env_cfg, model_path, vecnorm_path, n_eval,use_wandb: bool = False) -> None:
     """Sparse-reward win-rate check vs. the rule-based opponent, with an explicit
     assertion that vecnormalize stats loaded (a missing/mismatched stats file
     silently cripples the policy, so fail loudly instead)."""
@@ -177,8 +188,11 @@ def _sanity_eval(train_env_cfg, model_path, vecnorm_path, n_eval) -> None:
         env.close()
 
     total = max(1, n_eval)
-    print(f"[phase1] PPO vs rule-based (sparse, n={n_eval}): "
+    logger.info(f"PPO vs rule-based (sparse, n={n_eval}): "
           f"win={wins/total:.1%} loss={losses/total:.1%} draw={draws/total:.1%}")
+    if use_wandb:
+        wandb.log({"eval/win_rate": wins / total, "eval/loss_rate": losses / total, "eval/draw_rate": draws / total})
+        wandb.finish()
 
 
 if __name__ == "__main__":

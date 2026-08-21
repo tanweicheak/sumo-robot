@@ -36,7 +36,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts._script_common import build_run
+from scripts._script_common import build_run, poll_gpu_stats, setup_logging
 from scripts.run_phase4_pilot import _make_opponent_factory, STRATEGIES
 from src.baselines.rule_based_controller import make_rule_based_policy
 from src.data.lssd_encoder import LSSDEncoder
@@ -66,13 +66,23 @@ def _add_stage3_local_args(parser: argparse.ArgumentParser) -> None:
                          help="Rollout depth per expansion. Production wants ~4; lower here for speed.")
     parser.add_argument("--max-decisions-per-match", type=int, default=10)
     parser.add_argument("--real-dspy", action="store_true")
+    parser.add_argument("--use-wandb", action="store_true", help="Report training metrics to Weights & Biases")
 
 
 def main() -> None:
     config, ctx, args = build_run(
         phase="phase4_stage3_local", description=__doc__, extra_args=_add_stage3_local_args,
     )
-    print(f"[stage3-local] run_id={ctx.run_id}")
+    out_dir = Path(config.get("checkpoint_output_dir", f"checkpoints/{ctx.run_id}"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    logger = setup_logging(out_dir, name="phase4_stage3_local")
+    logger.info(f"run_id={ctx.run_id}")
+
+    use_wandb = args.use_wandb
+    if use_wandb:
+        import wandb
+        wandb.init(project="sumo-sbso", name=f"stage3-local-{ctx.run_id}", config=config)
+        logger.info("wandb enabled - project=sumo-sbso run=stage3-local-%s", ctx.run_id)
 
     judge_model_path = config["judge_model_path"]
     checkpoint_interval = int(config.get("checkpoint_interval", 1))
@@ -108,8 +118,6 @@ def main() -> None:
 
     checkpoint_mgr = SelfCheckpointManager(interval=checkpoint_interval)
 
-    out_dir = Path(config.get("checkpoint_output_dir", f"checkpoints/{ctx.run_id}"))
-    out_dir.mkdir(parents=True, exist_ok=True)
     progress_path = out_dir / "progress.json"
     pairs_path = out_dir / "training_pairs.jsonl"
     prompt_history_path = out_dir / "prompt_history.jsonl"
@@ -146,6 +154,23 @@ def main() -> None:
                 "recent_win_history": list(trainer._win_history),
             }, indent=2))
 
+        if use_wandb:
+            recent = trainer._win_history[-50:]
+            log_payload = {
+                "episode": ep,
+                "rolling_winrate": sum(recent) / len(recent) if recent else None,
+                "training_pairs_collected": len(trainer.training_pairs),
+                "prompt_version": trainer.prompt_version,
+            }
+            gpu_stats = poll_gpu_stats()
+            if gpu_stats is not None:
+                log_payload.update(gpu_stats)
+            if trainer.recompile_history and trainer.recompile_history[-1]["episode"] == ep:
+                event = trainer.recompile_history[-1]
+                log_payload["recompile_trigger_reason"] = event["trigger_reason"]
+                log_payload["recompile_accepted"] = event.get("accepted")
+            wandb.log(log_payload, step=ep)
+
     trainer = MatchLevelSBSOTrainer(
         ablation=ablation,
         mcts=mcts,
@@ -167,18 +192,23 @@ def main() -> None:
         on_episode_end=_on_episode_end,
     )
 
-    print(f"[stage3-local] starting {args.episodes} FULL MATCHES "
+    logger.info(f"starting {args.episodes} FULL MATCHES "
           f"(judge={judge_model_path}, real_dspy={args.real_dspy})")
     summary = trainer.run()
     pairs_file.close()
     prompt_history_file.close()
     calibration_file.close()
     env.close()
-    print(f"[stage3-local] summary={summary}")
-    print(f"[stage3-local] judge.call_count={judge.call_count}")
+    logger.info(f"summary={summary}")
+    logger.info(f"judge.call_count={judge.call_count}")
 
     calib_path = write_calibration_file(trainer.training_pairs, out_dir / "gptq_calibration_texts.txt")
-    print(f"[stage3-local] wrote calibration texts -> {calib_path}")
+    logger.info(f"wrote calibration texts -> {calib_path}")
+
+    if use_wandb:
+        wandb.log({"final/" + k: v for k, v in summary.items() if isinstance(v, (int, float))})
+        wandb.log({"final/judge_call_count": judge.call_count})
+        wandb.finish()
 
 
 if __name__ == "__main__":

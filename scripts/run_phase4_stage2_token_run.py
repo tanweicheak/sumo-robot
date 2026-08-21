@@ -16,14 +16,14 @@ Stages (each additive, gate with flags to control cost/latency):
 
 Examples:
     # Cheapest: real physics + real MCTS, mock judge, mock dspy. Seconds.
-    python -m scripts.run_phase4_stage2_token_run --episodes 2 --sim-budget 5
+    python -m scripts.run_stage2_token_run --episodes 2 --sim-budget 5
 
     # Add the real judge (slow - expect minutes for a handful of calls).
-    python -m scripts.run_phase4_stage2_token_run --episodes 1 --sim-budget 3 \
+    python -m scripts.run_stage2_token_run --episodes 1 --sim-budget 3 \
         --use-real-judge --judge-model-path models/llama-3.1-8b-instruct-Q4_K_M.gguf
 
     # Full local proof including a tiny real LoRA fine-tune.
-    python -m scripts.run_phase4_stage2_token_run --episodes 1 --sim-budget 3 \
+    python -m scripts.run_stage2_token_run --episodes 1 --sim-budget 3 \
         --use-real-judge --judge-model-path models/llama-3.1-8b-instruct-Q4_K_M.gguf \
         --run-lora --hf-model-path models/phi-4-mini-hf
 """
@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from scripts._script_common import setup_logging
 from src.agents.schemas import MacroStrategy
 from src.baselines.rule_based_controller import make_rule_based_policy
 from src.common.config_loader import load_config
@@ -66,6 +67,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
                     help="Stable LoRA hyperparams (rank/alpha/target_modules/learning_rate). "
                          "epochs and device stay CLI-controlled for this token-run.")
     p.add_argument("--output-dir", default="checkpoints/stage2_token_run")
+    p.add_argument("--seed", type=int, default=0, help="Seed for the LoRA train/val episode split")
+    p.add_argument("--use-wandb", action="store_true", help="Report LoRA training metrics to Weights & Biases")
     return p
 
 
@@ -73,8 +76,9 @@ def main() -> None:
     args = build_arg_parser().parse_args()
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    logger = setup_logging(out_dir, name="stage2_token_run")
 
-    print("[stage2] building real PyBullet env (rule-based opponent)...")
+    logger.info("building real PyBullet env (rule-based opponent)...")
     env_cfg = EnvConfig.from_config(use_gui=False, enable_reward_shaping=False)
     env = PyBulletSumoEnv(env_config=env_cfg, opponent_policy=make_rule_based_policy())
     env.reset()
@@ -84,11 +88,11 @@ def main() -> None:
     if args.use_real_judge:
         if not args.judge_model_path:
             raise SystemExit("--use-real-judge requires --judge-model-path")
-        print(f"[stage2] loading REAL judge from {args.judge_model_path} (slow, be patient)...")
+        logger.info(f"loading REAL judge from {args.judge_model_path} (slow, be patient)...")
         from src.sbso.judge import LlamaCppJudge
         judge = LlamaCppJudge(model_path=args.judge_model_path)
     else:
-        print("[stage2] using MockJudge (fast; pass --use-real-judge for the real thing)")
+        logger.info("using MockJudge (fast; pass --use-real-judge for the real thing)")
         judge = MockJudge(seed=0)
 
     from src.sbso.simulation_backend import PyBulletSimulationBackend
@@ -105,12 +109,12 @@ def main() -> None:
         if not args.hf_model_path:
             raise SystemExit("--use-real-dspy needs a llama.cpp GGUF path via --judge-model-path's "
                              "sibling flag is not required here; pass the SA model via config if needed.")
-        print("[stage2] using REAL DSPy compiler (needs `dspy-ai` installed)...")
+        logger.info("using REAL DSPy compiler (needs `dspy-ai` installed)...")
         from src.sbso.dspy_compiler import RealDSPyCompiler
         # Reuses the same GGUF the TEA/SA agents run on (Phase 3 model), not the judge model.
         dspy_compiler = RealDSPyCompiler(llama_model_path="models/phi-4-mini-Q4_K_M.gguf")
     else:
-        print("[stage2] using MockDSPyCompiler (fast; pass --use-real-dspy for the real thing)")
+        logger.info("using MockDSPyCompiler (fast; pass --use-real-dspy for the real thing)")
         dspy_compiler = MockDSPyCompiler()
 
     def root_state_builder(episode: int, opponent: str):
@@ -134,29 +138,34 @@ def main() -> None:
         root_state_builder=root_state_builder,
     )
 
-    print(f"[stage2] running {args.episodes} episode(s), sim_budget={args.sim_budget}, "
+    logger.info(f"running {args.episodes} episode(s), sim_budget={args.sim_budget}, "
           f"horizon={args.horizon}, cycles_per_node={args.cycles_per_node}...")
     summary = trainer.run()
-    print(f"[stage2] SBSO loop summary: {summary}")
+    logger.info(f"SBSO loop summary: {summary}")
     env.close()
 
     if not args.run_lora:
-        print("[stage2] --run-lora not set; stopping after training-pair collection.")
-        print("[stage2] STAGE 2 (MCTS/Judge/DSPy plumbing) TOKEN-RUN COMPLETE.")
+        logger.info("--run-lora not set; stopping after training-pair collection.")
+        logger.info("STAGE 2 (MCTS/Judge/DSPy plumbing) TOKEN-RUN COMPLETE.")
         return
 
     if not args.hf_model_path:
         raise SystemExit("--run-lora requires --hf-model-path (a HuggingFace-format Phi-4-mini "
                          "checkpoint, NOT the GGUF - see config/finetuning.yaml).")
 
-    print("[stage2] building SFT dataset from collected training pairs...")
-    from src.finetuning.lora_finetune import LoRAFineTuner, build_sft_dataset
-
-    sft_records = build_sft_dataset(
-        trainer.training_pairs, prompt_template="State: {state}\nStrategy:",
+    logger.info("building SFT dataset from collected training pairs...")
+    from src.finetuning.lora_finetune import (
+        LoRAFineTuner, build_sft_dataset, evaluate_strategy_accuracy, split_episodes_train_val,
     )
-    print(f"[stage2] {len(sft_records)} SFT record(s). Running a tiny real LoRA fine-tune "
-          f"(device={args.lora_device})...")
+
+    prompt_template = "State: {state}\nStrategy:"
+    train_pairs, val_pairs = split_episodes_train_val(trainer.training_pairs, val_fraction=0.1, seed=args.seed)
+    sft_records = build_sft_dataset(train_pairs, prompt_template=prompt_template)
+    eval_records = build_sft_dataset(val_pairs, prompt_template=prompt_template) if val_pairs else None
+    logger.info(f"{len(sft_records)} train SFT record(s), "
+          f"{len(eval_records) if eval_records else 0} held-out val record(s) "
+          f"({len(val_pairs and {p[0] for p in val_pairs} or set())} episodes). "
+          f"Running a tiny real LoRA fine-tune (device={args.lora_device})...")
 
     ft_config = load_config(args.finetuning_config)
     lora_cfg = ft_config.get("lora", {})
@@ -167,20 +176,34 @@ def main() -> None:
         target_modules=lora_cfg.get("target_modules"),
         learning_rate=float(lora_cfg.get("learning_rate", 2e-4)),
         epochs=1, device=args.lora_device,
+        use_wandb=args.use_wandb, wandb_run_name=f"lora-{out_dir.name}",
     )
-    adapter_path = tuner.run(sft_records)
-    print(f"[stage2] LoRA adapters saved -> {adapter_path}")
+    result = tuner.run(sft_records, eval_records=eval_records)
+    adapter_path = result["adapter_path"]
+    logger.info(f"LoRA adapters saved -> {adapter_path}")
 
-    print("[stage2] merging LoRA adapters into base model (fp16)...")
+    if eval_records:
+        # Does LoRA fine-tuning actually beat the frozen, zero-shot base model on
+        # the identical held-out set? Cheap, early sanity check on the whole
+        # premise of the training pipeline - no need to wait for a full Phase 5
+        # match evaluation to find out the adapter didn't help.
+        logger.info("comparing against frozen zero-shot base model on the same held-out set...")
+        from transformers import AutoModelForCausalLM
+        base_model = AutoModelForCausalLM.from_pretrained(args.hf_model_path).to(args.lora_device)
+        base_accuracy = evaluate_strategy_accuracy(base_model, result["tokenizer"], eval_records, args.lora_device)
+        logger.info(f"zero-shot base model accuracy:  {base_accuracy}")
+        logger.info(f"LoRA fine-tuned accuracy:        {result['final_epoch_accuracy']}")
+
+    logger.info("merging LoRA adapters into base model (fp16)...")
     from src.finetuning.merge_adapters import merge_lora_adapters
 
     merged_path = merge_lora_adapters(
         base_model_path=args.hf_model_path, adapter_path=adapter_path,
         output_dir=out_dir / "merged_fp16",
     )
-    print(f"[stage2] merged model saved -> {merged_path}")
-    print("[stage2] STOPPING before GPTQ quantization / GGUF export - those are CLOUD-ONLY.")
-    print("[stage2] FULL STAGE 2 TOKEN-RUN COMPLETE: real physics, real training-pair "
+    logger.info(f"merged model saved -> {merged_path}")
+    logger.info("STOPPING before GPTQ quantization / GGUF export - those are CLOUD-ONLY.")
+    logger.info("FULL STAGE 2 TOKEN-RUN COMPLETE: real physics, real training-pair "
           "collection, real LoRA fine-tune, real merge - all proven end-to-end.")
 
 

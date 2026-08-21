@@ -22,7 +22,7 @@ import argparse
 import json
 from pathlib import Path
 
-from scripts._script_common import build_run
+from scripts._script_common import build_run, poll_gpu_stats, setup_logging
 from src.agents.schemas import MacroStrategy
 from src.baselines.ppo_controller import PPOController
 from src.baselines.rule_based_controller import make_rule_based_policy
@@ -73,6 +73,7 @@ def _add_pilot_args(parser: argparse.ArgumentParser) -> None:
                           "a second, smaller config file just to change the episode count.")
     parser.add_argument("--checkpoint-interval-override", type=int, default=None,
                          help="Override config's self_checkpoint_interval_episodes, same reasoning.")
+    parser.add_argument("--use-wandb", action="store_true", help="Report training metrics to Weights & Biases")
 
 
 def main() -> None:
@@ -80,16 +81,26 @@ def main() -> None:
         phase="phase4_pilot", description="Phase 4 pilot: real timing/cost measurement.",
         extra_args=_add_pilot_args,
     )
-    print(f"[pilot] run_id={ctx.run_id}")
+    out_dir = Path(config.get("checkpoint_output_dir", f"checkpoints/{ctx.run_id}"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    logger = setup_logging(out_dir, name="phase4_pilot")
+    logger.info(f"run_id={ctx.run_id}")
+
+    use_wandb = args.use_wandb
+    if use_wandb:
+        import wandb
+        wandb.init(project="sumo-sbso", name=f"sbso-{ctx.run_id}", config=config)
+        logger.info("wandb enabled - project=sumo-sbso run=sbso-%s", ctx.run_id)
+
     inference_cfg = load_config("config/inference.yaml")
     sg = inference_cfg["sglang"]
 
-    print("[pilot] connecting to SGLang servers (must already be running - see docstring)...")
+    logger.info("connecting to SGLang servers (must already be running - see docstring)...")
     judge = SGLangJudge(server_url=sg["judge_server_url"], temperature=float(sg.get("temperature", 0.0)))
 
     dspy_compiler = RealDSPyCompiler(sglang_api_base=f"{sg['agent_server_url']}/v1")
 
-    print("[pilot] building PyBullet env...")
+    logger.info("building PyBullet env...")
     env_cfg = EnvConfig.from_config(use_gui=False, enable_reward_shaping=False)
     env = PyBulletSumoEnv(env_config=env_cfg, opponent_policy=make_rule_based_policy())
     env.reset()
@@ -116,7 +127,7 @@ def main() -> None:
     episodes = args.episodes_override or int(config["episodes_total"])
     checkpoint_interval = args.checkpoint_interval_override or int(config["self_checkpoint_interval_episodes"])
     if args.episodes_override or args.checkpoint_interval_override:
-        print(f"[pilot] override active: episodes={episodes} checkpoint_interval={checkpoint_interval}")
+        logger.info(f"override active: episodes={episodes} checkpoint_interval={checkpoint_interval}")
 
     checkpoint_mgr = SelfCheckpointManager(interval=checkpoint_interval)
 
@@ -124,8 +135,6 @@ def main() -> None:
     # RunPod pod loses at most one checkpoint-interval's worth of progress, not the
     # whole run. NOT crash-resumption - the run itself does not pick back up from a
     # saved point automatically.
-    out_dir = Path(config.get("checkpoint_output_dir", f"checkpoints/{ctx.run_id}"))
-    out_dir.mkdir(parents=True, exist_ok=True)
     progress_path = out_dir / "progress.json"
     pairs_path = out_dir / "training_pairs.jsonl"
     prompt_history_path = out_dir / "prompt_history.jsonl"
@@ -133,7 +142,7 @@ def main() -> None:
     pairs_file = pairs_path.open("a")
     prompt_history_file = prompt_history_path.open("a")
     calibration_file = calibration_path.open("a")
-    print(f"[pilot] progress -> {progress_path}   training_pairs -> {pairs_path}   "
+    logger.info(f"progress -> {progress_path}   training_pairs -> {pairs_path}   "
           f"prompt_history -> {prompt_history_path}   mcts_calibration -> {calibration_path}")
 
     pairs_written = 0
@@ -175,6 +184,36 @@ def main() -> None:
                 "recent_win_history": list(trainer._win_history),
             }, indent=2))
 
+        if use_wandb:
+            recent = trainer._win_history[-50:]
+            elapsed_hours = sum(trainer.timing["episode_seconds"]) / 3600.0
+            cost_so_far_usd = elapsed_hours * float(config["cost_projection"]["gpu_rate_usd_per_hr"])
+            log_payload = {
+                "episode": ep,
+                "rolling_winrate": sum(recent) / len(recent) if recent else None,
+                "training_pairs_collected": len(trainer.training_pairs),
+                "prompt_version": trainer.prompt_version,
+                "checkpoints_taken": len(trainer.checkpoint_mgr._checkpoints),
+                # Live cost accumulation - pure arithmetic on wall-clock already
+                # tracked (trainer.timing) x the configured GPU rate. No RunPod-side
+                # telemetry needed for this piece - it's the "how many dollars have
+                # I actually spent so far" counter, distinct from the GPU
+                # utilization poller below, which DOES need the real box.
+                "elapsed_hours": round(elapsed_hours, 3),
+                "cost_so_far_usd": round(cost_so_far_usd, 2),
+            }
+            gpu_stats = poll_gpu_stats()
+            if gpu_stats is not None:
+                log_payload.update(gpu_stats)
+            # Only log a recompile event on the episode it actually happened, not
+            # every episode - avoids a wandb chart with a misleading step-function
+            # repeated at every log call.
+            if trainer.recompile_history and trainer.recompile_history[-1]["episode"] == ep:
+                event = trainer.recompile_history[-1]
+                log_payload["recompile_trigger_reason"] = event["trigger_reason"]
+                log_payload["recompile_accepted"] = event.get("accepted")
+            wandb.log(log_payload, step=ep)
+
     trainer = MatchLevelSBSOTrainer(
         ablation=ablation,
         mcts=mcts,
@@ -200,17 +239,17 @@ def main() -> None:
         on_episode_end=_on_episode_end,
     )
 
-    print(f"[pilot] running {episodes} episodes (real matches, real MCTS, "
+    logger.info(f"running {episodes} episodes (real matches, real MCTS, "
           f"real Judge, real DSPy)... this will take a while.")
     summary = trainer.run()
     pairs_file.close()
     prompt_history_file.close()
     calibration_file.close()
     env.close()
-    print(f"[pilot] summary: {summary}")
+    logger.info(f"summary: {summary}")
 
     calib_path = write_calibration_file(trainer.training_pairs, out_dir / "gptq_calibration_texts.txt")
-    print(f"[pilot] wrote calibration texts -> {calib_path}")
+    logger.info(f"wrote calibration texts -> {calib_path}")
 
     cp = config["cost_projection"]
     projection = project_full_run(
@@ -220,7 +259,12 @@ def main() -> None:
         num_variants=int(cp["num_variants"]),
         gpu_rate_usd_per_hr=float(cp["gpu_rate_usd_per_hr"]),
     )
-    print(f"[pilot] PROJECTED FULL RUN (5 variants x {cp['full_episodes_per_variant']} eps): {projection}")
+    logger.info(f"PROJECTED FULL RUN (5 variants x {cp['full_episodes_per_variant']} eps): {projection}")
+
+    if use_wandb:
+        wandb.log({"final/" + k: v for k, v in summary.items() if isinstance(v, (int, float))})
+        wandb.log({"projection/" + k: v for k, v in projection.items() if isinstance(v, (int, float))})
+        wandb.finish()
 
 
 if __name__ == "__main__":

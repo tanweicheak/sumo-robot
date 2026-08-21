@@ -18,3 +18,10 @@ dspy_recompilation:               # PLACEHOLDER - pilot calibration pending (pla
   k_rollout_batches: 500         # trigger (a): recompile every K batches
   reward_drop_threshold_delta: 0.05   # trigger (b): rolling mean reward drop > delta
   rolling_window_w: 100              # window size for trigger (b)
+
+mcts:
+  sim_budget: 40                  # PLACEHOLDER - never calibrated
+  horizon: 3
+  judge_prune_threshold: 0.3
+  decision_cycles: 6              # physical control cycles executed per macro-decision
+  max_decisions_per_match: 50     # safety cap; match also ends on win/loss/timeout

@@ -111,3 +111,30 @@ def require_keys(config: dict[str, Any], keys: list[str], *, context: str = "") 
             if not isinstance(node, dict) or part not in node:
                 raise ConfigError(f"Missing required config key '{key}'{ctx}")
             node = node[part]
+
+
+def validate_config(config: dict[str, Any], phase: str) -> dict[str, Any]:
+    """Validate `config` against the Pydantic schema registered for `phase`, if any.
+
+    Deliberately returns the ORIGINAL dict unchanged on success - every existing
+    `config["a"]["b"]`-style access across the codebase keeps working exactly as
+    before. This only adds a fail-fast check at load time; it does not change what
+    load_config() returns or how downstream code consumes it.
+
+    A phase with no schema registered yet (see config_schemas.PHASE_SCHEMAS) is a
+    silent no-op, not an error - this is a phased rollout, not an all-or-nothing
+    requirement.
+    """
+    from src.common.config_schemas import PHASE_SCHEMAS
+
+    schema = PHASE_SCHEMAS.get(phase)
+    if schema is None:
+        return config
+
+    try:
+        schema(**config)
+    except Exception as exc:  # pydantic.ValidationError, re-raised as ConfigError for
+        # consistency with every other error this module raises.
+        raise ConfigError(f"Config validation failed for phase '{phase}':\n{exc}") from exc
+
+    return config

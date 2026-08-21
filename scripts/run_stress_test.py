@@ -11,8 +11,8 @@ Purpose: Run a chosen attacker against src.baselines.adversarial_bait_controller
     tactical competence.
 
 Usage today (works right now, no dependency on Phase 4 completion):
-    python -m scripts.run_stress_test --attacker rule_based --episodes 50 --episode-seconds 15 --gui --trace --randomize-rule-based
-    python -m scripts.run_stress_test --attacker ppo --ppo-model-path checkpoints/baseline2_ppo/ppo_baseline2.zip \
+    python -m scripts.run_stress_test --attacker rule_based --episodes 50
+    python -m scripts.run_stress_test --attacker ppo --ppo-model-path checkpoints/baseline2_ppo/model.zip \
         --ppo-vecnorm-path checkpoints/baseline2_ppo/vecnormalize.pkl --episodes 50
 
 Usage once Phase 4 training has produced a checkpoint (come back to this later):
@@ -28,6 +28,7 @@ Usage once Phase 4 training has produced a checkpoint (come back to this later):
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
@@ -97,6 +98,9 @@ def main() -> None:
     args = build_arg_parser().parse_args()
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    results_path = out_dir / "results.jsonl"
+    results_file = results_path.open("a")
+    print(f"[stress_test] results -> {results_path}")
 
     if args.randomize_rule_based and args.attacker != "rule_based":
         raise SystemExit("--randomize-rule-based only applies to --attacker rule_based")
@@ -154,6 +158,12 @@ def main() -> None:
                 reason = info.get("agent_out_reason") or info.get("opponent_out_reason")
                 break
         outcomes[outcome] = outcomes.get(outcome, 0) + 1
+        results_file.write(json.dumps({
+            "episode": ep, "attacker": args.attacker, "outcome": outcome, "reason": reason,
+            "min_dist": round(min_dist, 4), "randomized": args.randomize_rule_based,
+            "episode_seconds": args.episode_seconds,
+        }) + "\n")
+        results_file.flush()
         reason_note = f"  reason={reason}" if outcome != "draw" and reason else ""
         print(f"[stress_test] episode {ep + 1}/{args.episodes}: {outcome}{reason_note}  (min_dist={min_dist:.3f}m)")
         if outcome == "draw" and min_dist > 0.5:
@@ -168,6 +178,7 @@ def main() -> None:
             )
 
     env.close()
+    results_file.close()
 
     total = sum(outcomes.values())
     win_rate = outcomes["win"] / total if total else 0.0

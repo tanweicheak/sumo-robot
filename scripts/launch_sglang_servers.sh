@@ -7,7 +7,7 @@
 #     (OAA/SA/TEA via LangGraph), NOT needed for Stage 3 SBSO training itself, which
 #     uses MacroStrategyExecutor instead of live SLM calls during MCTS.
 #   - judge server (port 30001): Llama-3.1-8B-Instruct - THIS is the one
-#     run_phase4_stage3_cloud.py actually needs.
+#     run_phase4_pilot.py actually needs.
 #
 # Usage (on the RunPod pod, after pip install -r requirements.txt -r requirements-cloud.txt):
 #   bash scripts/launch_sglang_servers.sh /workspace/models/phi-4-mini-hf /workspace/models/llama-3.1-8b-instruct-hf
@@ -49,7 +49,7 @@ if [ -n "$AGENT_MODEL_PATH" ]; then
     _start_one "sglang-agent" "$AGENT_MODEL_PATH" "$AGENT_PORT"
 else
     echo "No agent_model_path given - skipping the agent server (fine for training-only runs;"
-    echo "run_phase4_stage3_cloud.py only needs the judge server)."
+    echo "run_phase4_pilot.py only needs the judge server)."
 fi
 _start_one "sglang-judge" "$JUDGE_MODEL_PATH" "$JUDGE_PORT"
 

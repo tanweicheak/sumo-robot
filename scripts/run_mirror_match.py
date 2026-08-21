@@ -29,6 +29,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
@@ -66,12 +67,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--ppo-model-path", default=None)
     p.add_argument("--ppo-vecnorm-path", default=None)
     p.add_argument("--gui", action="store_true")
+    p.add_argument("--output-dir", default="results/mirror_match")
     return p
 
 
 def main() -> None:
     args = build_arg_parser().parse_args()
     agent_factory, opp_factory = _load_pair(args)
+
+    out_dir = Path(args.output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    results_path = out_dir / "results.jsonl"
+    results_file = results_path.open("a")
+    print(f"[mirror_match] results -> {results_path}")
 
     env_cfg = EnvConfig.from_config(use_gui=args.gui, enable_reward_shaping=False)
     env = PyBulletSumoEnv(env_config=env_cfg, opponent_policy=opp_factory())
@@ -93,8 +101,13 @@ def main() -> None:
                 outcome = info.get("outcome", "draw")
                 break
         outcomes[outcome] = outcomes.get(outcome, 0) + 1
+        results_file.write(json.dumps({
+            "episode": ep, "attacker": args.attacker, "outcome": outcome, "randomized": args.randomize,
+        }) + "\n")
+        results_file.flush()
 
     env.close()
+    results_file.close()
 
     total = sum(outcomes.values())
     win_rate = outcomes["win"] / total if total else 0.0
