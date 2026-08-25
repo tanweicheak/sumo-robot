@@ -1,15 +1,28 @@
 # Additional dependencies for RunPod (Stage 3: SGLang serving, LoRA fine-tuning, GPTQ
 # quantization). Install AFTER requirements.txt, on the pod:
-#   pip install -r requirements.txt -r requirements-cloud.txt
+#   pip install -r requirements.txt -r requirements_runpod.txt
 #
 # torch here should be the CUDA build matching the pod's CUDA version - RunPod's
 # PyTorch template images typically already have a matching torch preinstalled, so you
 # may not need to reinstall it at all (check with `python -c "import torch; print(torch.__version__, torch.cuda.is_available())"`
-# before running pip install torch again).
+# before running pip install torch again - AND AGAIN AFTER the install below completes.
+# sglang's own dependency chain (sgl-kernel / flashinfer) has repeatedly, silently
+# pulled in a different torch version on install - this is a real, currently open
+# class of issue upstream (sgl-project/sglang #15260, #10373), not a hypothetical
+# concern. If the post-install check shows CUDA unavailable or a torch version you
+# didn't expect, reinstall the correct CUDA build explicitly and re-verify - don't
+# assume the preinstalled one survived.
 
 -r requirements.txt
 
-sglang>=0.4          # the actual server package - only needed where the server runs
+sglang==0.4.6.post5  # PINNED, not >=0.4 - an open floor lets pip/uv pick up a newer
+                      # sglang release whose sgl-kernel/flashinfer sub-dependency
+                      # demands a torch version that silently replaces the pod's
+                      # preinstalled CUDA build (see comment above). Confirm this
+                      # exact version against whatever RunPod template/CUDA version
+                      # you're actually using before relying on this pin - it is a
+                      # known-reasonable starting point, not verified against your
+                      # specific pod image.
 transformers>=4.44
 peft>=0.11           # LoRA adapters (merge_adapters.py)
 accelerate>=0.30
@@ -17,3 +30,8 @@ gptqmodel>=1.4       # GPTQ INT4 quantization (quantize_gptq.py) - requires CUDA
 huggingface_hub>=0.24
 wandb
 datasets
+
+# NOT a pip dependency, listed here as a reminder: export_gguf.py / quantize_gguf.py
+# need a locally-built llama.cpp checkout (specifically `convert_hf_to_gguf.py` and
+# the `llama-quantize` binary) - this is a separate `git clone` + build step on the
+# pod, not something `pip install` can provide.

@@ -7,8 +7,12 @@ pydantic>=2.0
 pyyaml>=6.0
 
 # --- physics simulation (Phase 1) ----------------------------------------------------
-pybullet>=3.2.5
-pybullet-data>=3.0.9
+pybullet>=3.2.5   # bundles pybullet_data internally - `import pybullet_data` works
+                   # once this is installed, no separate package needed. (A prior
+                   # `pybullet-data>=3.0.9` line here was unresolvable on PyPI -
+                   # "from versions: none" - and aborted the entire pip install,
+                   # which is also why pyyaml/pydantic looked missing afterward:
+                   # pip resolves the whole file before installing anything.)
 gymnasium>=0.29
 numpy>=1.26
 scipy>=1.11   # required by src.preprocessing.savitzky_golay_filter (scipy.signal.savgol_filter)
@@ -33,4 +37,3 @@ pytest>=8.0
 # --- experiment tracking (wandb tier) + artifact backup (item 5 layer 2) ---------------
 wandb>=0.16
 huggingface_hub>=0.20
-tensorboard
