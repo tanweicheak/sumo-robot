@@ -6,7 +6,6 @@ models/
 checkpoints/
 
 # Data, Logs, and Caches
-data/
 logs/
 results/
 backup/
