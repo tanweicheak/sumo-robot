@@ -41,3 +41,78 @@ Post-mortem after a crash or a long unattended run — you can open run.log the 
 grep ERROR run.log or grep WARNING run.log — instantly surfaces problems (a rejected DSPy candidate, a schema fallback firing) without scrolling through thousands of lines of normal progress.
 Timestamps — lets you see exactly how long each phase actually took after the fact, feeding directly into the cost/timing tracking from item 1.
 Cleaner future integration — structured log records are easier to feed into wandb/a dashboard later than raw print() strings, if you go that route.
+
+## MCTS 
+# Self-Checkpoint Opponent: Fix Applied + Known Limitation for Report
+
+## 1. Fix applied — `scripts/run_phase4_pilot.py` (KeyError blocker)
+
+**Symptom:** running `run_phase4_pilot.py` against `phase4_full_sbso.yaml` or any
+ablation config crashed immediately with `KeyError: 'pilot_scope'`.
+
+**Root cause:** the opponent factory read `config["opponent_pool"]["pilot_scope"]`
+directly, a key that only exists in `phase4_pilot.yaml`. Separately, the
+`OpponentPool(...)` construction never passed `self_checkpoint_manager` or
+`target_counts`, so even without the crash, self-checkpoint opponents (the model
+playing against snapshots of its own past strategies) could never be sampled —
+`OpponentPool.sample()` requires `self_checkpoint_manager is not None` before it will
+ever offer that choice.
+
+**Fix:**
+- `_make_opponent_factory` is now called with a hardcoded `["baseline1", "baseline2"]`
+  instead of a config read. This scope is invariant between pilot and full run — the
+  factory only ever resolves baseline opponent kinds into policies; self-checkpoint
+  opponents carry their own `rollout_policy` already embedded on the `OpponentDescriptor`
+  (see `OpponentPool.sample()`), so the factory was never meant to handle that case.
+- `OpponentPool(...)` now receives `self_checkpoint_manager=checkpoint_mgr` (reusing the
+  same `SelfCheckpointManager` instance the trainer already checkpoints with — the
+  class's own docstring specifies this exact pattern: *"so what this pool offers
+  matches what actually got snapshotted"*) and `target_counts=config["opponent_pool"].get("full_run_targets")`.
+  On the pilot config (no `full_run_targets` key), this falls back to `OpponentPool`'s
+  even 3-way default harmlessly — the pilot still won't sample self-checkpoints during
+  its warmup-only window, matching `phase4_pilot.yaml`'s documented, intentional scope.
+  On the full-run/ablation configs, this now correctly enables the proportional
+  self-checkpoint curriculum defined in `_shared_defaults.yaml` (`baseline1: 1667,
+  baseline2: 1667, self_checkpoint: 1666` of 5000 episodes).
+
+No changes were needed in `OpponentPool` or `SelfCheckpointManager` themselves — both
+already fully supported this; the gap was only in how `run_phase4_pilot.py` wired them.
+
+## 2. Known limitation to carry into the report — self-checkpoint match continuation
+
+**What works after the fix:** during MCTS tree search, a sampled self-checkpoint
+opponent behaves as its past self — `OpponentDescriptor.rollout_policy` is a
+`MacroStrategyExecutorOpponent` proxy reconstructed from that checkpoint's compiled
+prompt program, and `PyBulletSimulationBackend` runs it for all rollout simulations
+regardless of opponent kind. This is the part that matters for SBSO's core mechanism
+(learning to beat prior versions of itself via search).
+
+**What does NOT yet work:** the *real, committed* match continuation — the physical
+steps actually executed after a decision, via `match_trainer.py`'s
+`env.opponent_policy = self.opponent_factory(opp_type)` — has no self-checkpoint case
+in `_make_opponent_factory`. When `opp_type == "self_checkpoint"`, it silently falls
+through to `make_rule_based_policy()`. So a self-checkpoint opponent plays the actual
+match as a plain rule-based controller, not as a live re-enactment of its own past
+strategy, even though MCTS *searched* against the correct proxy.
+
+This is not a bug introduced by the fix above — it's a pre-existing, self-documented
+gap. `src/sbso/opponent_pool.py`'s module docstring states it directly: *"a live-SLM
+policy for the real, committed match continuation is a separate, not-yet-built hook."*
+
+**Why this is a reasonable limitation to report rather than block on:**
+- The rule-based fallback is a conservative substitute (never crashes, never gives an
+  unfairly strong or degenerate opponent) rather than a silent correctness bug.
+- The mismatch only affects the *execution* of a self-checkpoint-opponent episode, not
+  the tree search that drives the strategy being learned — MCTS's evaluation of
+  candidate branches remains checkpoint-accurate.
+- Building the live-SLM continuation hook would require spinning up a second live
+  inference path (a checkpoint-specific served model or adapter) mid-episode, which is
+  a meaningfully larger engineering task than the fix above, not a quick follow-on.
+
+**Suggested framing for the report's limitations section:** the self-checkpoint
+opponent curriculum informs MCTS's search-time evaluation faithfully, but the
+committed match continuation currently substitutes a rule-based policy in place of a
+true self-play re-enactment; closing this gap is noted as future work rather than
+addressed in the current SBSO implementation.
+
+## 
