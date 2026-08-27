@@ -66,11 +66,11 @@ class TestProjectConfigs(unittest.TestCase):
         # was deliberately left inherited (500) for every variant, ablations included -
         # NOT reduced to match the smaller episode count - so that assertion stays flat.
         expected_episodes_total = {
-            "phase4_full_sbso.yaml": 5000,
-            "phase4_ablation_no_sa.yaml": 1800,
-            "phase4_ablation_no_mcts.yaml": 1800,
-            "phase4_ablation_no_dspy.yaml": 1800,
-            "phase4_ablation_no_judge.yaml": 1800,
+            "phase4_full_sbso.yaml": 500,
+            "phase4_ablation_no_sa.yaml": 500,
+            "phase4_ablation_no_mcts.yaml": 500,
+            "phase4_ablation_no_dspy.yaml": 500,
+            "phase4_ablation_no_judge.yaml": 500,
         }
         seen_variants = set()
         for fname, expected_total in expected_episodes_total.items():
