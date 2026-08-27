@@ -147,7 +147,18 @@ class RealDSPyCompiler(DSPyCompiler):
         def _metric(example, prediction, trace=None):
             return float(example.strategy == prediction.strategy)
 
-        teleprompter = dspy.BootstrapFewShot(metric=_metric, max_bootstrapped_demos=self.max_bootstrapped_demos)
+        # DIAGNOSTIC: num_threads=1 added to isolate whether the "input_ids should be a
+        # list of lists for batch processing" error from SGLang's OpenAI-compatible
+        # endpoint is triggered by BootstrapFewShot's default concurrent evaluation
+        # (never previously exercised - all other calls in this pipeline go through
+        # SGLang's native /generate endpoint via a proven-working ThreadPoolExecutor,
+        # not this OpenAI-compatible /v1/chat/completions path). If this resolves the
+        # error, the root cause is concurrency-specific on SGLang's OpenAI-compat layer
+        # for this sglang==0.4.6.post5 pin - re-evaluate before removing this, don't
+        # just delete it once it starts working.
+        teleprompter = dspy.BootstrapFewShot(
+            metric=_metric, max_bootstrapped_demos=self.max_bootstrapped_demos, num_threads=1,
+        )
         compiled = teleprompter.compile(predictor, trainset=examples)
         return self._extract_prompt_program(compiled, current_prompt)
 
