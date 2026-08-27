@@ -14,9 +14,16 @@ components:
 
 checkpoint_output_dir: checkpoints/ablation_no_mcts/
 
-episodes_total: 1800
+episodes_total: 500
+self_checkpoint_interval_episodes: 25
+dspy_recompilation:
+  k_rollout_batches: 25
 opponent_pool:
+  warmup_episodes: 100
+  warmup_split:
+    baseline1: 50
+    baseline2: 50
   full_run_targets:
-    baseline1: 600
-    baseline2: 600
-    self_checkpoint: 600
+    baseline1: 184
+    baseline2: 183
+    self_checkpoint: 133

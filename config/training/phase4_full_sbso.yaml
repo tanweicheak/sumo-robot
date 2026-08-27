@@ -11,3 +11,17 @@ components:
   dspy: enabled
 
 checkpoint_output_dir: checkpoints/benchmark2_full_sbso/
+
+episodes_total: 500
+self_checkpoint_interval_episodes: 25
+dspy_recompilation:
+  k_rollout_batches: 25
+opponent_pool:
+  warmup_episodes: 100
+  warmup_split:
+    baseline1: 50
+    baseline2: 50
+  full_run_targets:
+    baseline1: 184
+    baseline2: 183
+    self_checkpoint: 133
