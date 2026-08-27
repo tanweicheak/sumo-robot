@@ -30,6 +30,116 @@ class MockDSPyCompiler(DSPyCompiler):
         # marks that a recompilation happened so the loop's cadence is observable.
         return f"{current_prompt}#recompiled_v{self.compile_count}"
 
+
+def _make_sglang_native_lm_class():
+    """Factory that defines SGLangNativeLM as a real dspy.BaseLM subclass, only at
+    call time - keeps `import dspy` lazy (this file's existing convention: dspy/
+    litellm are slow to import, and MockDSPyCompiler-only callers shouldn't pay
+    that cost - see class docstring below for why this adapter exists at all)."""
+    import dspy
+
+    class SGLangNativeLM(dspy.BaseLM):
+        """dspy.BaseLM subclass that routes through SGLang's native /generate
+        endpoint instead of its OpenAI-compatible /v1/chat/completions endpoint.
+
+        Why this exists: this SGLang server (sglang==0.4.6.post5) returns
+        'input_ids should be a list of lists for batch processing' on EVERY
+        /v1/chat/completions request, unconditionally - confirmed via a bare
+        openai-client repro with no DSPy/litellm involved (4/4 test shapes
+        failed identically), and confirmed NOT a chat-template issue
+        (Phi-4-mini's own real template fails with the identical error; a
+        wrong generic 'chatml' template merely avoids the crash while
+        producing incorrect output - see session notes). Matches the same
+        error string as sgl-project/sglang issue #25593 (different
+        model/endpoint/version) - unresolved upstream as of this writing, no
+        available workaround via launch flags. The native /generate endpoint
+        is a separate code path in SGLang that has been reliable all session
+        (episode collection, MCTS, the constrained-decoding preflight check) -
+        this adapter reuses it instead of waiting on an upstream fix.
+
+        forward_contract="legacy" (DSPy's default): forward(prompt=None,
+        messages=None, **kwargs) must return one of three OpenAI-like shapes -
+        using the "OpenAI chat completion format" here, since it's the
+        simplest to build from SGLang's {"text": ...} response. Confirmed
+        against the actual installed dspy==3.3.1 BaseLM.forward docstring,
+        not assumed.
+
+        Single-turn text completion only (confirmed sufficient for this
+        project's SAStrategySignature/_metric use in RealDSPyCompiler.compile)
+        - does NOT implement true multi-turn chat history threading. If
+        `messages` contains more than one message, they're concatenated into
+        a single prompt string with role labels, not sent as a structured
+        conversation - fine for this project's usage, would need extending
+        for real multi-turn.
+        """
+
+        def __init__(
+            self,
+            server_url: str,
+            model: str = "sglang-native",
+            temperature: float = 0.0,
+            max_tokens: int = 8,
+            timeout_s: float = 30.0,
+            **kwargs,
+        ) -> None:
+            super().__init__(
+                model=model, model_type="chat", temperature=temperature,
+                max_tokens=max_tokens, cache=False, **kwargs,
+            )
+            self.server_url = server_url.rstrip("/")
+            self.timeout_s = timeout_s
+            self.call_count = 0
+
+        def _flatten_prompt(self, prompt: str | None, messages: list[dict] | None) -> str:
+            if prompt is not None:
+                return prompt
+            if messages:
+                return "\n".join(f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages)
+            return ""
+
+        def forward(self, prompt: str | None = None, messages: list[dict] | None = None, **kwargs):
+            import requests
+            import time
+            import uuid
+
+            text_prompt = self._flatten_prompt(prompt, messages)
+            payload = {
+                "text": text_prompt,
+                "sampling_params": {
+                    "temperature": kwargs.get("temperature", self.kwargs.get("temperature", 0.0)) or 0.0,
+                    "max_new_tokens": kwargs.get("max_tokens", self.kwargs.get("max_tokens", 8)),
+                },
+            }
+            self.call_count += 1
+            resp = requests.post(f"{self.server_url}/generate", json=payload, timeout=self.timeout_s)
+            resp.raise_for_status()
+            data = resp.json()
+            completion_text = (data.get("text") or "").strip()
+            meta = data.get("meta_info", {}) or {}
+
+            return {
+                "id": f"sglang-native-{uuid.uuid4().hex[:12]}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": self.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": completion_text},
+                        "finish_reason": meta.get("finish_reason", {}).get("type", "stop")
+                        if isinstance(meta.get("finish_reason"), dict) else "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": meta.get("prompt_tokens", 0),
+                    "completion_tokens": meta.get("completion_tokens", 0),
+                    "total_tokens": meta.get("prompt_tokens", 0) + meta.get("completion_tokens", 0),
+                },
+            }
+
+    return SGLangNativeLM
+
+
 """
 (append to src/sbso/dspy_compiler.py)
 
@@ -65,11 +175,21 @@ class RealDSPyCompiler(DSPyCompiler):
             import dspy
 
             if self.sglang_api_base:
-                # SGLang's OpenAI-compatible endpoint; api_key is unchecked by SGLang
-                # but litellm/dspy require a non-empty string.
-                self._lm = dspy.LM(
-                    model="openai/sglang-agent", api_base=self.sglang_api_base, api_key="EMPTY",
-                )
+                # Was: dspy.LM(model="openai/sglang-agent", api_base=self.sglang_api_base,
+                # api_key="EMPTY") - routed through SGLang's OpenAI-compatible endpoint.
+                # Confirmed broken: /v1/chat/completions returns "input_ids should be a
+                # list of lists for batch processing" on EVERY request, unconditionally
+                # (bare openai-client repro, no DSPy/litellm involved, 4/4 shapes failed
+                # identically) - see SGLangNativeLM's docstring for the full investigation.
+                # Fix: use the native /generate endpoint instead, via a proper
+                # dspy.BaseLM subclass. sglang_api_base was built as f"{agent_server_url}/v1"
+                # for the old OpenAI-compat path - strip that suffix, SGLangNativeLM talks
+                # to {server_url}/generate directly.
+                native_base = self.sglang_api_base
+                if native_base.endswith("/v1"):
+                    native_base = native_base[: -len("/v1")]
+                SGLangNativeLM = _make_sglang_native_lm_class()
+                self._lm = SGLangNativeLM(server_url=native_base, model="sglang-agent")
             else:
                 # D5b fix: "llama_cpp/" was never a real LiteLLM provider prefix - LiteLLM
                 # (which dspy.LM routes through) only talks to models over HTTP, via
@@ -82,6 +202,8 @@ class RealDSPyCompiler(DSPyCompiler):
                 #   python -m llama_cpp.server --model <path/to.gguf> --port 8080
                 # or llama.cpp's own `llama-server -m <path/to.gguf> --port 8080`
                 # then pass llama_cpp_api_base="http://127.0.0.1:8080/v1".
+                # (llama.cpp's own OpenAI-compat server is a different codebase than
+                # SGLang's - no evidence it shares this bug, left as dspy.LM/litellm here.)
                 self._lm = dspy.LM(
                     model="openai/local-llama", api_base=self.llama_cpp_api_base, api_key="EMPTY",
                 )
