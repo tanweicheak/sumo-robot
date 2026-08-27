@@ -1,5 +1,5 @@
 """
-src.inference.sglang_client
+src.inference.sglang_server
 
 Phase: Phase 4 (Stage 3)
 Purpose: Real SLM backend via SGLang's native HTTP server. Implements the same
@@ -100,11 +100,11 @@ class SGLangSLMClient(SLMClient):
             value = enum_cls(text)
         except ValueError:
             self.fallback_count += 1
-        logger.warning(
-            "SGLangSLMClient: constraint fallback fired (call %d, fallback %d so far) - "
-            "raw text=%r did not match any %s value, defaulting to %r. If this fires "
-            "often, the grammar/regex constraint is not actually working.",
-            self.call_count, self.fallback_count, text, enum_cls.__name__, values[0],
-        )
+            logger.warning(
+                "SGLangSLMClient: constraint fallback fired (call %d, fallback %d so far) - "
+                "raw text=%r did not match any %s value, defaulting to %r. If this fires "
+                "often, the grammar/regex constraint is not actually working.",
+                self.call_count, self.fallback_count, text, enum_cls.__name__, values[0],
+            )
             value = enum_cls(values[0])   # regex constraint should prevent this
         return schema(**{field_name: value})
