@@ -26,3 +26,18 @@ opponent_pool:
     baseline1: 184
     baseline2: 183
     self_checkpoint: 133
+
+# --- mcts override (fix, added after cancelling the Benchmark 2 first attempt) ------
+# See phase4_full_sbso.yaml for full rationale. MCTS stays enabled in this ablation
+# (only the Judge is disabled), so sim_budget still applies - simulations still run,
+# they just aren't pruned by judge_prune_threshold (run_phase4_pilot.py's own code
+# already forces that to 0.0 for this ablation regardless of the value set here, per
+# the "no_judge ablation: force 0.0 regardless of config" comment seen earlier this
+# session - left at the real default below rather than 0.0, since this key has no
+# effect for this variant either way).
+mcts:
+  sim_budget: 20
+  horizon: 3
+  judge_prune_threshold: 0.3
+  decision_cycles: 6
+  max_decisions_per_match: 50

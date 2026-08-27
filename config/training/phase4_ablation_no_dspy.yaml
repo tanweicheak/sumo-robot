@@ -28,3 +28,13 @@ opponent_pool:
     baseline1: 184
     baseline2: 183
     self_checkpoint: 133
+
+# --- mcts override (fix, added after cancelling the Benchmark 2 first attempt) ------
+# See phase4_full_sbso.yaml for full rationale. MCTS stays enabled in this ablation
+# (only DSPy is disabled), so this fix fully applies here.
+mcts:
+  sim_budget: 20
+  horizon: 3
+  judge_prune_threshold: 0.3
+  decision_cycles: 6
+  max_decisions_per_match: 50

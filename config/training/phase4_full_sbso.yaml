@@ -25,3 +25,18 @@ opponent_pool:
     baseline1: 184
     baseline2: 183
     self_checkpoint: 133
+
+# --- mcts override (fix, added after cancelling the first attempt) ------------------
+# _shared_defaults.yaml's mcts.sim_budget: 40 is explicitly marked "PLACEHOLDER -
+# never calibrated" - never a deliberate choice, just an unreviewed carryover. The
+# only sim_budget with real calibration evidence is 20 (phase4_pilot.yaml's value,
+# backed by an actual report_mcts_judge_calibration.py run: r=0.25, weak-but-real
+# signal). Using 40 doubled real per-decision time on the first attempt (judge calls
+# are the dominant, roughly sim_budget-linear cost) for a value with zero supporting
+# evidence. Overriding to the evidenced value.
+mcts:
+  sim_budget: 20
+  horizon: 3
+  judge_prune_threshold: 0.3
+  decision_cycles: 6
+  max_decisions_per_match: 50

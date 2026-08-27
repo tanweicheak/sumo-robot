@@ -27,3 +27,17 @@ opponent_pool:
     baseline1: 184
     baseline2: 183
     self_checkpoint: 133
+
+# --- mcts override (fix, added after cancelling the Benchmark 2 first attempt) ------
+# Same fix applied across all real-run variants for consistency, though sim_budget
+# specifically has little effect HERE - ablation.strategy: no_mcts replaces the real
+# MCTS search entirely with single-pass direct policy sampling (see this file's
+# ablation.strategy comment above), so sim_budget isn't consulted the way it is for
+# the other variants. Included anyway so this config isn't silently different from
+# the others for no functional reason.
+mcts:
+  sim_budget: 20
+  horizon: 3
+  judge_prune_threshold: 0.3
+  decision_cycles: 6
+  max_decisions_per_match: 50
