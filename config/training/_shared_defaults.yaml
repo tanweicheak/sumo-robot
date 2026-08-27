@@ -25,3 +25,6 @@ mcts:
   judge_prune_threshold: 0.3
   decision_cycles: 6              # physical control cycles executed per macro-decision
   max_decisions_per_match: 50     # safety cap; match also ends on win/loss/timeout
+
+cost_projection:
+  gpu_rate_usd_per_hr: 0.44

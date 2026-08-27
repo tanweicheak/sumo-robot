@@ -432,11 +432,10 @@ not something this patch introduces or fixes.
 One command per variant, same script, different config each time:
 
 ```bash
-python -m scripts.run_phase4_pilot --config <verified-path>/phase4_full_sbso.yaml --use-wandb
-python -m scripts.run_phase4_pilot --config <verified-path>/phase4_ablation_no_sa.yaml --use-wandb
-python -m scripts.run_phase4_pilot --config <verified-path>/phase4_ablation_no_mcts.yaml --use-wandb
-python -m scripts.run_phase4_pilot --config <verified-path>/phase4_ablation_no_dspy.yaml --use-wandb
-python -m scripts.run_phase4_pilot --config <verified-path>/phase4_ablation_no_judge.yaml --use-wandb
+python -m scripts.run_phase4_pilot --config config/training/phase4_full_sbso.yaml --use-wandb
+python -m scripts.run_phase4_pilot --config config/training/phase4_ablation_no_mcts.yaml --use-wandb
+python -m scripts.run_phase4_pilot --config config/training/phase4_ablation_no_dspy.yaml --use-wandb
+python -m scripts.run_phase4_pilot --config config/training/phase4_ablation_no_judge.yaml --use-wandb
 ```
 
 Run these sequentially, not in parallel — they'd contend for the same GPU
@@ -471,13 +470,38 @@ python -m scripts.validate_quantization_quality \
 most expensive-to-regenerate artifacts specifically — run once after
 training completes:
 ```bash
-huggingface-cli login   # once, if not already
-python -m scripts.backup_to_hub \
-    --repo-id <your-username>/sumo-sbso-benchmark2 \
+hf auth login
+python -m scripts.back_to_hub \
+    --repo-id tanweicheak/sumo-sbso-benchmark2 \
     --adapter-dir checkpoints/benchmark2_full_sbso/lora_run/lora_adapters \
     --merged-dir checkpoints/benchmark2_full_sbso/merged_fp16 \
-    --gguf-dir checkpoints/benchmark2_full_sbso/gguf
+    --extra-dir checkpoints/benchmark2_full_sbso:jsonl_logs
 ```
+
+```bash
+python -m scripts.back_to_hub \
+    --repo-id tanweicheak/sumo-sbso-ablation-no-mcts \
+    --adapter-dir checkpoints/benchmark2_full_sbso/lora_run/lora_adapters \
+    --merged-dir checkpoints/benchmark2_full_sbso/merged_fp16 \
+    --extra-dir checkpoints/benchmark2_full_sbso:jsonl_logs
+```
+
+```bash
+python -m scripts.back_to_hub \
+    --repo-id tanweicheak/sumo-sbso-ablation-no-dspy \
+    --adapter-dir checkpoints/benchmark2_full_sbso/lora_run/lora_adapters \
+    --merged-dir checkpoints/benchmark2_full_sbso/merged_fp16 \
+    --extra-dir checkpoints/benchmark2_full_sbso:jsonl_logs
+```
+
+```bash
+python -m scripts.back_to_hub \
+    --repo-id tanweicheak/sumo-sbso-ablation-no-judge \
+    --adapter-dir checkpoints/benchmark2_full_sbso/lora_run/lora_adapters \
+    --merged-dir checkpoints/benchmark2_full_sbso/merged_fp16 \
+    --extra-dir checkpoints/benchmark2_full_sbso:jsonl_logs
+```
+
 
 **If using Volume Disk only (no Network Volume):** this step is not
 optional redundancy — it's the *only* thing standing between your results
