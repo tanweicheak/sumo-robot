@@ -48,17 +48,24 @@ def _load_attacker_policy(args: argparse.Namespace):
         from src.baselines.ppo_controller import PPOController
         return PPOController.load(args.ppo_model_path, args.ppo_vecnorm_path, deterministic=True)
 
-    # Extension point for Benchmark 1 / Benchmark 2: once Phase 5's match-runner
-    # defines how a trained SLM checkpoint becomes an opponent_policy-shaped
-    # callable (OAA+SA+TEA wired to a running SGLang/llama.cpp server), load it
-    # here and return it. Deliberately not stubbed further than this - guessing at
-    # that interface now would just create another thing to unwind later.
-    raise NotImplementedError(
-        f"--attacker {args.attacker} needs Phase 5's SLM-policy-loading path, which "
-        "doesn't exist yet (src/evaluation/match_runner.py is still an empty stub). "
-        "rule_based and ppo work today; come back to this once a Benchmark 1/2 "
-        "checkpoint exists and Phase 5's match-runner is built."
-    )
+    if args.attacker in ("benchmark1", "benchmark2"):
+        if not args.sglang_agent_url:
+            raise SystemExit(f"--attacker {args.attacker} requires --sglang-agent-url")
+        from src.evaluation.match_runner import load_benchmark_opponent
+        if args.attacker == "benchmark2" and not args.prompt_history_path:
+            raise SystemExit(
+                "--attacker benchmark2 requires --prompt-history-path (e.g. "
+                "checkpoints/benchmark2_full_sbso/prompt_history.jsonl) - without it, "
+                "load_benchmark_opponent refuses to silently evaluate benchmark2 as "
+                "zero-shot. See src/evaluation/match_runner.py's docstring."
+            )
+        return load_benchmark_opponent(
+            args.attacker,
+            sglang_agent_url=args.sglang_agent_url,
+            prompt_history_path=args.prompt_history_path,
+        )
+
+    raise NotImplementedError(f"Unknown --attacker {args.attacker}")
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -66,6 +73,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--attacker", choices=["rule_based", "ppo", "benchmark1", "benchmark2"], required=True)
     p.add_argument("--ppo-model-path", default=None)
     p.add_argument("--ppo-vecnorm-path", default=None)
+    p.add_argument("--sglang-agent-url", default=None,
+                    help="Required for --attacker benchmark1/benchmark2, e.g. http://localhost:30000")
+    p.add_argument("--prompt-history-path", default=None,
+                    help="Required for --attacker benchmark2 only - path to the trained variant's "
+                         "prompt_history.jsonl, e.g. checkpoints/benchmark2_full_sbso/prompt_history.jsonl")
     p.add_argument("--episodes", type=int, default=50)
     p.add_argument("--max-steps", type=int, default=None, help="Override EnvConfig.max_episode_seconds-derived cap.")
     p.add_argument(
