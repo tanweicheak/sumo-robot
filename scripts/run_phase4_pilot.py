@@ -122,15 +122,7 @@ def main() -> None:
         judge_prune_threshold=float(config["mcts"]["judge_prune_threshold"]) if ablation.judge_enabled else 0.0,
     )
 
-    # _make_opponent_factory only ever resolves baseline1/baseline2 into policies - a
-    # sampled self_checkpoint OpponentDescriptor already carries its own rollout_policy
-    # (see OpponentPool.sample()), so this scope is invariant between pilot and full
-    # run and does NOT come from config. Previously read config["opponent_pool"]
-    # ["pilot_scope"], which only exists in phase4_pilot.yaml - pointing this script at
-    # phase4_full_sbso.yaml or an ablation config raised KeyError before this fix.
-    # (Matches the same hardcoded scope run_phase4_stage3_local.py already uses when
-    # it reuses this function: _make_opponent_factory(pilot_scope=["baseline1","baseline2"]).)
-    opponent_factory = _make_opponent_factory(["baseline1", "baseline2"])
+    opponent_factory = _make_opponent_factory(config["opponent_pool"]["pilot_scope"])
 
     episodes = args.episodes_override or int(config["episodes_total"])
     checkpoint_interval = args.checkpoint_interval_override or int(config["self_checkpoint_interval_episodes"])
@@ -193,7 +185,11 @@ def main() -> None:
             }, indent=2))
 
         if use_wandb:
-            recent = trainer._win_history[-50:]
+            # trainer._win_history is a deque(maxlen=scheduler.window_w) - it already
+            # never holds more than the window size, so no slicing is needed (deques
+            # don't support slice indexing like list[-50:] anyway - that's what crashed
+            # here). list(...) materializes it for sum()/len() below.
+            recent = list(trainer._win_history)
             elapsed_hours = sum(trainer.timing["episode_seconds"]) / 3600.0
             cost_so_far_usd = elapsed_hours * float(config["cost_projection"]["gpu_rate_usd_per_hr"])
             log_payload = {
@@ -228,15 +224,6 @@ def main() -> None:
         opponent_pool=OpponentPool(
             warmup_episodes=config["opponent_pool"]["warmup_episodes"],
             total_episodes=episodes,
-            # Reuse the SAME SelfCheckpointManager instance the trainer checkpoints
-            # with (see docstring in opponent_pool.py: "so what this pool offers
-            # matches what actually got snapshotted"). Pilot configs have no
-            # full_run_targets, so .get() falls back to OpponentPool's even 3-way
-            # default - self_checkpoint still won't be sampled during the pilot's
-            # warmup-only window regardless, matching phase4_pilot.yaml's documented
-            # scope (self_checkpoint excluded from the pilot by design).
-            self_checkpoint_manager=checkpoint_mgr,
-            target_counts=config["opponent_pool"].get("full_run_targets"),
         ),
         scheduler=RecompilationScheduler(
             k_episodes=int(config["dspy_recompilation"]["k_rollout_batches"]),
