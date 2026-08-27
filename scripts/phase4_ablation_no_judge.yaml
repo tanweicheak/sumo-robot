@@ -1,0 +1,22 @@
+# Ablation 5b.4: Benchmark 2 with LLM-as-a-Judge removed.
+variant_name: ablation_no_judge
+extends: _shared_defaults.yaml
+
+ablation:
+  strategy: no_judge
+  # Branches go unfiltered into simulation: full compute budget, no pruning.
+
+components:
+  mcts: enabled
+  llm_as_a_judge: disabled
+  dspy: enabled
+
+checkpoint_output_dir: checkpoints/ablation_no_judge/
+
+# --- Reduced-scope ablation - see phase4_ablation_no_sa.yaml for full rationale ------
+episodes_total: 1800
+opponent_pool:
+  full_run_targets:
+    baseline1: 600
+    baseline2: 600
+    self_checkpoint: 600

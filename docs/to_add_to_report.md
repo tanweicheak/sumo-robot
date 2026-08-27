@@ -115,4 +115,64 @@ committed match continuation currently substitutes a rule-based policy in place 
 true self-play re-enactment; closing this gap is noted as future work rather than
 addressed in the current SBSO implementation.
 
-## 
+## ablation study 2000 episdes
+# Reduced-Scope Ablation Study — Methodology Note
+
+## Decision
+
+The four Phase 5b ablation conditions (5b.1-5b.4: without SA, MCTS, DSPy, and
+LLM-as-a-Judge respectively) are trained on **1,800 episodes each**, rather than the
+full 5,000-episode schedule used for Benchmark 2. This does **not** affect Benchmark
+2 itself, and does **not** affect RQ1/RQ2's headline claims — those are answered by
+Phase 5a (Blocks B, C, D) against the full-scale Benchmark 2 checkpoint, which is
+unchanged.
+
+## Why this is defensible, not a shortcut
+
+Per report.md 3.3.5.2, the ablation study's stated purpose is a per-component
+**effect-size** signal (Cohen's d >= 0.3, "small-to-medium" threshold — deliberately
+lower than the headline SBSO win-rate claim) answering *"whether one component
+matters, not whether the whole system is competitive."* That is a directional,
+comparative question against Benchmark 2, not an absolute-performance claim requiring
+the same statistical power as the headline result. The existing episode counts in
+`_shared_defaults.yaml` (5,000 total, K/W/delta recompilation triggers, MCTS
+sim_budget) are themselves documented as placeholders pending pilot calibration, not
+derived from a formal power analysis — so this reduction changes a placeholder
+engineering choice, not an already-justified statistical design.
+
+## What changed, concretely
+
+Each ablation config now overrides two values from `_shared_defaults.yaml`, leaving
+everything else (MCTS/DSPy/Judge hyperparameters, warmup schedule, checkpoint
+interval) inherited unchanged — including the pilot-calibrated K/W/delta values once
+those are frozen, since the ablations don't override that block:
+
+| | Full run (Benchmark 2) | Ablations (5b.1-5b.4) |
+|---|---|---|
+| `episodes_total` | 5,000 | 1,800 |
+| `opponent_pool.full_run_targets` | baseline1: 1667 / baseline2: 1667 / self_checkpoint: 1666 | baseline1: 600 / baseline2: 600 / self_checkpoint: 600 |
+| `opponent_pool.warmup_episodes` | 500 (unchanged) | 500 (unchanged) |
+| `self_checkpoint_interval_episodes` | 500 → ~10 checkpoints taken | 500 (unchanged) → ~3 checkpoints taken |
+
+1,800 was chosen to stay comfortably above the fixed 500-episode warmup floor (during
+which only baseline1/baseline2 opponents are eligible), leaving ~1,300 post-warmup
+episodes for self-checkpoint opponents to actually accumulate a usable sample under
+the proportional 600/600/600 split.
+
+## Limitation to state explicitly in the report
+
+The self-checkpoint curriculum each ablation trains against is thinner than
+Benchmark 2's — roughly 3 self-checkpoint generations to play against, versus 10 on
+the full run. If a specific ablation's degraded performance turns out to trace back to
+having fewer, less-refined self-checkpoint opponents to train against (rather than the
+ablated component itself), that's a confound this reduced scope introduces and should
+be named as a limitation, not silently absorbed into the component's effect-size
+result. Recommended framing for report.md's 3.6 Limitations section:
+
+> "The four Phase 5b ablation conditions were trained on a reduced 1,800-episode
+> schedule (versus Benchmark 2's 5,000) to manage compute cost, following the same
+> warmup and opponent-pool proportions at smaller scale. This preserves the ablation
+> study's directional effect-size comparison (Cohen's d >= 0.3 threshold) but yields a
+> thinner self-checkpoint curriculum (~3 generations versus ~10) for each ablated
+> variant, which is disclosed as a limitation on the precision of each component's
+> isolated contribution."

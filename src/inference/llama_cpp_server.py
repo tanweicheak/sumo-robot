@@ -12,6 +12,7 @@ Purpose: Real SLM backend via llama-cpp-python (report's specified llama.cpp + G
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Type
 
@@ -19,6 +20,8 @@ from pydantic import BaseModel
 
 from src.inference.grammar import enum_choice_grammar, primary_enum_field
 from src.inference.slm_client import SLMClient
+
+logger = logging.getLogger(__name__)
 
 
 class LlamaCppSLMClient(SLMClient):
@@ -40,6 +43,9 @@ class LlamaCppSLMClient(SLMClient):
         self.seed = seed
         self.verbose = verbose
         self.call_count = 0
+        self.fallback_count = 0   # see sglang_client.py's matching counter - incremented
+                                  # when the grammar-constrained decode fails to parse and
+                                  # falls back to values[0]; should stay at 0 in normal operation
         self._llm = None
         self._grammar_cache: dict[str, object] = {}
 
@@ -89,5 +95,12 @@ class LlamaCppSLMClient(SLMClient):
         try:
             value = enum_cls(text)
         except ValueError:
+            self.fallback_count += 1
+            logger.warning(
+                "LlamaCppSLMClient: constraint fallback fired (call %d, fallback %d so far) - "
+                "raw text=%r did not match any %s value, defaulting to %r. If this fires "
+                "often, the grammar is not actually constraining generation.",
+                self.call_count, self.fallback_count, enum_cls.__name__, values[0],
+            )
             value = enum_cls(values[0])   # grammar should prevent this, but be safe
         return schema(**{field_name: value})

@@ -12,10 +12,25 @@
 # concern. If the post-install check shows CUDA unavailable or a torch version you
 # didn't expect, reinstall the correct CUDA build explicitly and re-verify - don't
 # assume the preinstalled one survived.
+#
+# After installing, before trusting the install: run
+#   python -c "import sglang.srt.entrypoints.http_server"
+# and confirm it imports with NO output at all. A real GPU-pod run of this file found
+# it does NOT import clean on the first try even with every line below present -
+# see the sglang[srt]/uvicorn/fastapi/pyzmq/torchvision/triton comments further down
+# for the specific chain of transitive gaps found, in the order they surfaced.
+#
+# Also seen on that same pod, unrelated to any of the above but worth a clean-up pass
+# if you see it: `WARNING: Ignoring invalid distribution ~ympy` on every pip command -
+# a corrupted/partial leftover sympy install (likely from an earlier interrupted install,
+# e.g. the disk-exhaustion issue this project hit on the CPU pod). Harmless to the
+# imports above, but noisy and worth clearing:
+#   rm -rf /workspace/venv/lib/python3.12/site-packages/~ympy*
+#   python -m pip install --no-cache-dir --force-reinstall sympy
 
 -r requirements.txt
 
-sglang==0.4.6.post5  # PINNED, not >=0.4 - an open floor lets pip/uv pick up a newer
+sglang[srt]==0.4.6.post5  # PINNED, not >=0.4 - an open floor lets pip/uv pick up a newer
                       # sglang release whose sgl-kernel/flashinfer sub-dependency
                       # demands a torch version that silently replaces the pod's
                       # preinstalled CUDA build (see comment above). Confirm this
@@ -23,6 +38,58 @@ sglang==0.4.6.post5  # PINNED, not >=0.4 - an open floor lets pip/uv pick up a n
                       # you're actually using before relying on this pin - it is a
                       # known-reasonable starting point, not verified against your
                       # specific pod image.
+                      #
+                      # [srt] EXTRA ADDED (previously bare `sglang==`): a real GPU-pod
+                      # install with the bare package left `python -m sglang.launch_server`
+                      # failing with ModuleNotFoundError for uvicorn, then fastapi, then
+                      # zmq, one at a time, each only surfacing once the previous one was
+                      # installed - i.e. sglang's actual HTTP-serving dependency chain was
+                      # NOT being pulled in by the bare install. `pip show sglang` also
+                      # showed a suspiciously short `Requires:` (aiohttp, IPython, numpy,
+                      # requests, setproctitle, tqdm - no uvicorn/fastapi/zmq at all),
+                      # consistent with the real serving deps living behind an extra
+                      # rather than the base package. NOT YET CONFIRMED end-to-end on this
+                      # project's pod - verify `python -c "import sglang.srt.entrypoints.http_server"`
+                      # actually imports clean with just this extra before assuming the
+                      # three explicit lines below are redundant; leaving them in either way
+                      # since they're harmless if already satisfied by the extra.
+uvicorn>=0.30         # ASGI server sglang.srt.entrypoints.http_server imports directly;
+                      # missing under the bare `sglang==` install, see note above.
+fastapi>=0.110        # same story as uvicorn - surfaced as the next missing import
+                      # immediately after uvicorn was installed manually.
+pyzmq>=25.0           # import name is `zmq`, package name is `pyzmq` - surfaced as the
+                      # third missing import in the same chain (uvicorn -> fastapi -> zmq).
+torchvision           # NOT actually needed for a text-only judge/agent model, but
+                      # sglang.srt.configs.__init__ unconditionally imports Janus-Pro
+                      # (a VLM config) at package-import time, which requires torchvision
+                      # to exist even though it's never used for Llama-3.1-8B-Instruct or
+                      # Phi-4-mini. Deliberately left unpinned here - install it matched to
+                      # whatever torch build is actually on the pod, from the matching
+                      # PyTorch wheel index, NOT plain PyPI:
+                      #   python -c "import torch; print(torch.__version__)"
+                      #   python -m pip install --no-cache-dir torchvision \
+                      #       --index-url https://download.pytorch.org/whl/cu128   # match the cu tag above
+                      # Installing torchvision unpinned from plain PyPI risks it pulling a
+                      # DIFFERENT torch as its own dependency and silently replacing the
+                      # working CUDA build - same class of risk this file's top comment
+                      # already warns about for sglang's own sub-dependencies.
+
+# --- triton: OPEN ISSUE, not yet resolved as of this file's last edit ----------------
+# `sglang.srt.utils` imports `default_cache_dir` from `triton.runtime.cache`, which does
+# not exist in triton 3.7.1 (the newest PyPI release, and what a plain `pip install`
+# resolves to with no other constraint in play). `pip show sglang`'s `Requires:` does not
+# list triton at all, so there's no declared-dependency version to fall back on - the
+# compatible version is only knowable from sglang==0.4.6.post5's actual build-time pins
+# (its pyproject.toml / the [srt] extra's requirements at time of release), not from
+# anything visible in this environment after the fact. Two paths, in order to try:
+#   1. If the `sglang[srt]` extra above turns out to pin a compatible triton itself,
+#      this whole section becomes unnecessary - confirm that first.
+#   2. If not, check https://pypi.org/pypi/sglang/0.4.6.post5/json (`requires_dist`) for
+#      the real declared triton constraint at release time, and pin explicitly:
+#        triton==<confirmed version>   # DO NOT guess a version and paste it here -
+#                                        # an unconfirmed pin is worse than an explicit
+#                                        # unresolved comment, see this project's
+#                                        # standing practice on verifying before fixing.
 transformers>=4.44
 peft>=0.11           # LoRA adapters (merge_adapters.py)
 accelerate>=0.30

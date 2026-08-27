@@ -1,0 +1,23 @@
+# Ablation 5b.2: Benchmark 2 with MCTS removed.
+variant_name: ablation_no_mcts
+extends: _shared_defaults.yaml
+
+ablation:
+  strategy: no_mcts
+  # Replaced by single-pass direct policy sampling: one rollout per decision point,
+  # no Selection/Expansion/Backprop, no tree statistics. See plan Assumption A3.
+
+components:
+  mcts: disabled
+  llm_as_a_judge: enabled
+  dspy: enabled
+
+checkpoint_output_dir: checkpoints/ablation_no_mcts/
+
+# --- Reduced-scope ablation - see phase4_ablation_no_sa.yaml for full rationale ------
+episodes_total: 1800
+opponent_pool:
+  full_run_targets:
+    baseline1: 600
+    baseline2: 600
+    self_checkpoint: 600

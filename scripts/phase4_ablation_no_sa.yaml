@@ -1,0 +1,33 @@
+# Ablation 5b.1: Benchmark 2 with Strategy Agent (SA) removed.
+variant_name: ablation_no_sa
+extends: _shared_defaults.yaml
+
+ablation:
+  strategy: no_sa
+  # OAA output is passed directly to TEA; no macro-strategy field exists for this
+  # condition. See src/sbso/ablation_strategies.py and plan Assumption A3.
+
+components:
+  mcts: enabled
+  llm_as_a_judge: enabled
+  dspy: enabled
+
+checkpoint_output_dir: checkpoints/ablation_no_sa/
+
+# --- Reduced-scope ablation (methodology decision, not a placeholder) ---------------
+# Phase 5b's purpose is a per-component effect-size signal (d >= 0.3 threshold, see
+# report.md 3.3.5.2), not the headline win-rate estimate RQ1/RQ2 already get from the
+# full 5000-episode Benchmark 2 run (report.md 3.3.5.1 Block D). That headline claim is
+# NOT descoped here - only the 4 ablations are. 1800 was chosen to stay comfortably
+# above the fixed 500-episode warmup floor (opponent_pool.warmup_episodes, inherited
+# unchanged from _shared_defaults.yaml) while leaving ~1300 post-warmup episodes for
+# self-checkpoint accumulation. Trade-off worth stating explicitly in the report:
+# self_checkpoint_interval_episodes (500, inherited) yields ~3 self-checkpoints taken
+# over this run vs. ~10 on the full 5000-episode run - a thinner self-play curriculum
+# than Benchmark 2's, not just fewer total episodes.
+episodes_total: 1800
+opponent_pool:
+  full_run_targets:
+    baseline1: 600
+    baseline2: 600
+    self_checkpoint: 600

@@ -14,7 +14,7 @@ Purpose: Real SLM backend via SGLang's native HTTP server. Implements the same
 
 from __future__ import annotations
 
-import threading
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Type
 
@@ -22,6 +22,8 @@ from pydantic import BaseModel
 
 from src.inference.grammar import enum_regex_pattern, primary_enum_field
 from src.inference.slm_client import SLMClient
+
+logger = logging.getLogger(__name__)
 
 
 class SGLangSLMClient(SLMClient):
@@ -39,10 +41,11 @@ class SGLangSLMClient(SLMClient):
         self.timeout_s = timeout_s
         self.max_concurrency = max_concurrency
         self.call_count = 0
-        # generate_structured_batch() dispatches concurrently via ThreadPoolExecutor -
-        # `self.call_count += 1` is a load/add/store sequence, not a single atomic op,
-        # so concurrent threads could race and lose an increment without this lock.
-        self._call_count_lock = threading.Lock()
+        self.fallback_count = 0   # incremented in _parse() when the enum-constrained
+                                  # decode fails to parse and falls back to values[0] -
+                                  # should stay at 0 if the grammar/regex constraint is
+                                  # actually working; a nonzero, growing count means
+                                  # results are silently defaulting, not real model output
 
     def generate_structured(
         self, prompt: str, schema: Type[BaseModel], max_new_tokens: int | None = None, **kwargs
@@ -86,8 +89,7 @@ class SGLangSLMClient(SLMClient):
     def _post(self, payload: dict) -> dict:
         import requests
 
-        with self._call_count_lock:
-            self.call_count += 1
+        self.call_count += 1
         resp = requests.post(f"{self.server_url}/generate", json=payload, timeout=self.timeout_s)
         resp.raise_for_status()
         return resp.json()
@@ -97,5 +99,12 @@ class SGLangSLMClient(SLMClient):
         try:
             value = enum_cls(text)
         except ValueError:
+            self.fallback_count += 1
+            logger.warning(
+                "SGLangSLMClient: constraint fallback fired (call %d, fallback %d so far) - "
+                "raw text=%r did not match any %s value, defaulting to %r. If this fires "
+                "often, the grammar/regex constraint is not actually working.",
+                self.call_count, self.fallback_count, enum_cls.__name__, values[0],
+            )
             value = enum_cls(values[0])   # regex constraint should prevent this
         return schema(**{field_name: value})
