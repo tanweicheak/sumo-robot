@@ -59,21 +59,29 @@ class TestProjectConfigs(unittest.TestCase):
 
     def test_all_phase4_training_configs_resolve(self) -> None:
         training_dir = CONFIG_DIR / "training"
-        # episodes_total diverges by design (reduced-scope ablation study - see
-        # reduced_scope_ablation_note.md): Benchmark 2 runs the full 5000-episode
-        # schedule; the 4 ablations run a reduced 1800 to manage compute cost while
-        # preserving the Phase 5b effect-size comparison. self_checkpoint_interval_episodes
-        # was deliberately left inherited (500) for every variant, ablations included -
-        # NOT reduced to match the smaller episode count - so that assertion stays flat.
-        expected_episodes_total = {
-            "phase4_full_sbso.yaml": 500,
-            "phase4_ablation_no_sa.yaml": 500,
-            "phase4_ablation_no_mcts.yaml": 500,
-            "phase4_ablation_no_dspy.yaml": 500,
-            "phase4_ablation_no_judge.yaml": 500,
+        # 3-day timeline override (see 3day_timeline_note.md), supersedes the earlier
+        # 1800-episode reduced-scope decision for the 4 variants actually in the real
+        # run plan. episodes_total AND self_checkpoint_interval_episodes were
+        # co-derived together (500 / 25) - the interval is NOT left flat at the
+        # inherited 500 the way the earlier 1800-episode decision left it, because at
+        # this smaller scale that would make self-checkpoint opponents never eligible
+        # at all (see session notes on opponent_pool.warmup_episodes as a hard gate).
+        #
+        # phase4_ablation_no_sa.yaml is intentionally EXCLUDED here, not just expected
+        # to differ - it was dropped from the actual 3-day run plan entirely (SA
+        # ablation's unique contribution overlaps with Phase 5a's Block C architecture
+        # comparison; see 3day_timeline_note.md) and was deliberately left unmodified,
+        # still at the earlier 1800-episode/500-interval reduced-scope values. Testing
+        # it against the active-run numbers would fail for a reason unrelated to
+        # whether the real deployed configs are correct - it's tested separately below.
+        expected = {
+            "phase4_full_sbso.yaml": (500, 25),
+            "phase4_ablation_no_mcts.yaml": (500, 25),
+            "phase4_ablation_no_dspy.yaml": (500, 25),
+            "phase4_ablation_no_judge.yaml": (500, 25),
         }
         seen_variants = set()
-        for fname, expected_total in expected_episodes_total.items():
+        for fname, (expected_total, expected_interval) in expected.items():
             cfg = load_config(training_dir / fname)
             # extends: _shared_defaults.yaml must have merged in the episode budget.
             require_keys(
@@ -82,9 +90,19 @@ class TestProjectConfigs(unittest.TestCase):
                 context=fname,
             )
             self.assertEqual(cfg["episodes_total"], expected_total, msg=fname)
-            self.assertEqual(cfg["self_checkpoint_interval_episodes"], 500, msg=fname)
+            self.assertEqual(cfg["self_checkpoint_interval_episodes"], expected_interval, msg=fname)
             seen_variants.add(cfg["variant_name"])
-        self.assertEqual(len(seen_variants), 5)  # all five variants distinct
+        self.assertEqual(len(seen_variants), 4)  # all four active-run variants distinct
+
+    def test_dropped_ablation_left_at_prior_reduced_scope(self) -> None:
+        """no_sa was dropped from the 3-day run plan, not deleted - confirms it still
+        holds the EARLIER 1800-episode reduced-scope values (not the 3-day-timeline
+        500/25 values, since it never received that override) and that this is a
+        deliberate, known state, not an accidental omission."""
+        training_dir = CONFIG_DIR / "training"
+        cfg = load_config(training_dir / "phase4_ablation_no_sa.yaml")
+        self.assertEqual(cfg["episodes_total"], 1800)
+        self.assertEqual(cfg["self_checkpoint_interval_episodes"], 500)
 
     def test_ablation_component_flags_consistent(self) -> None:
         training_dir = CONFIG_DIR / "training"
