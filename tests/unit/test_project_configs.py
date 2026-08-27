@@ -59,15 +59,21 @@ class TestProjectConfigs(unittest.TestCase):
 
     def test_all_phase4_training_configs_resolve(self) -> None:
         training_dir = CONFIG_DIR / "training"
-        variant_files = [
-            "phase4_full_sbso.yaml",
-            "phase4_ablation_no_sa.yaml",
-            "phase4_ablation_no_mcts.yaml",
-            "phase4_ablation_no_dspy.yaml",
-            "phase4_ablation_no_judge.yaml",
-        ]
+        # episodes_total diverges by design (reduced-scope ablation study - see
+        # reduced_scope_ablation_note.md): Benchmark 2 runs the full 5000-episode
+        # schedule; the 4 ablations run a reduced 1800 to manage compute cost while
+        # preserving the Phase 5b effect-size comparison. self_checkpoint_interval_episodes
+        # was deliberately left inherited (500) for every variant, ablations included -
+        # NOT reduced to match the smaller episode count - so that assertion stays flat.
+        expected_episodes_total = {
+            "phase4_full_sbso.yaml": 5000,
+            "phase4_ablation_no_sa.yaml": 1800,
+            "phase4_ablation_no_mcts.yaml": 1800,
+            "phase4_ablation_no_dspy.yaml": 1800,
+            "phase4_ablation_no_judge.yaml": 1800,
+        }
         seen_variants = set()
-        for fname in variant_files:
+        for fname, expected_total in expected_episodes_total.items():
             cfg = load_config(training_dir / fname)
             # extends: _shared_defaults.yaml must have merged in the episode budget.
             require_keys(
@@ -75,8 +81,8 @@ class TestProjectConfigs(unittest.TestCase):
                 ["variant_name", "ablation.strategy", "episodes_total", "opponent_pool.warmup_episodes"],
                 context=fname,
             )
-            self.assertEqual(cfg["episodes_total"], 5000)
-            self.assertEqual(cfg["self_checkpoint_interval_episodes"], 500)
+            self.assertEqual(cfg["episodes_total"], expected_total, msg=fname)
+            self.assertEqual(cfg["self_checkpoint_interval_episodes"], 500, msg=fname)
             seen_variants.add(cfg["variant_name"])
         self.assertEqual(len(seen_variants), 5)  # all five variants distinct
 

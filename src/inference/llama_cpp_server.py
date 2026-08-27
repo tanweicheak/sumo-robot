@@ -100,7 +100,7 @@ class LlamaCppSLMClient(SLMClient):
                 "LlamaCppSLMClient: constraint fallback fired (call %d, fallback %d so far) - "
                 "raw text=%r did not match any %s value, defaulting to %r. If this fires "
                 "often, the grammar is not actually constraining generation.",
-                self.call_count, self.fallback_count, enum_cls.__name__, values[0],
-            )
+                self.call_count, self.fallback_count, text, enum_cls.__name__, values[0],
+            )   
             value = enum_cls(values[0])   # grammar should prevent this, but be safe
         return schema(**{field_name: value})
