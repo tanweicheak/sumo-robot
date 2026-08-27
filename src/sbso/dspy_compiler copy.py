@@ -101,73 +101,28 @@ def _make_sglang_native_lm_class():
                 return "\n".join(f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages)
             return ""
 
-        def _json_constraint_regex(self, messages: list[dict] | None) -> str | None:
-            """Detects DSPy's JSONAdapter-style prompt (the "Outputs will be a JSON
-            object" marker, confirmed present in the real system message via debug
-            logging) and returns a regex anchoring the whole response to valid JSON
-            with `strategy` constrained to MacroStrategy's real enum values - reusing
-            enum_regex_pattern's existing longest-first alternation logic rather than
-            duplicating it (sglang_server.py already relies on that ordering to avoid
-            a short value like "charge" short-matching inside "charge_forward"-style
-            longer values).
-
-            Why this exists: unconstrained JSON prompting was NOT reliable for this
-            model - real pilot logs showed 'No other text or explanations would be
-            accepted. `strategy`: "hold"', '{camelCase}', and (once max_tokens was
-            raised) truncated free-association like '"tik-tak-tik-tak-tik-t"' cut off
-            at the token limit. xgrammar (confirmed via /get_server_info as this
-            server's grammar_backend) enforces this at decode time - not a prompted
-            request the model can ignore, the same hard guarantee already proven
-            reliable for the live-agent/judge regex constraints all session.
-
-            Returns None for non-JSON prompts (e.g. ChatAdapter's first-attempt
-            `[[ ## field ## ]]` format, which succeeded unconstrained in earlier
-            testing) - applying a JSON-shaped regex there would break it, not help.
-            Currently hardcoded to the `strategy` field/MacroStrategy - this project's
-            only real DSPy use case (SAStrategySignature) - would need generalizing if
-            RealDSPyCompiler is ever pointed at a signature with a different output
-            field or enum.
-            """
-            if not messages:
-                return None
-            combined = " ".join(m.get("content", "") for m in messages)
-            if "Outputs will be a JSON object" not in combined:
-                return None
-
-            from src.inference.grammar import enum_regex_pattern
-            from src.agents.schemas import MacroStrategy
-
-            values = [s.value for s in MacroStrategy]
-            enum_alt = enum_regex_pattern(values)
-            # Whitespace-tolerant JSON object regex: {"strategy": "<one of the enum
-            # values>"} allowing SGLang/xgrammar's own whitespace handling around the
-            # colon and braces, matching the shape JSONAdapter's prompt asks for.
-            return r'\{\s*"strategy"\s*:\s*"' + enum_alt + r'"\s*\}'
-
         def forward(self, prompt: str | None = None, messages: list[dict] | None = None, **kwargs):
             import requests
             from types import SimpleNamespace
 
             text_prompt = self._flatten_prompt(prompt, messages)
-            sampling_params = {
-                "temperature": kwargs.get("temperature", self.kwargs.get("temperature", 0.0)) or 0.0,
-                # 150, not 8 (sglang_server.py's live-agent default): confirmed via
-                # debug logging that unconstrained DSPy calls need real room to work
-                # through JSONAdapter/ChatAdapter's formatting instructions before
-                # producing an actual answer - a small model with no few-shot demos
-                # yet was observed echoing/paraphrasing the instructions themselves
-                # ("Do not include any text outside of the...") and getting cut off
-                # mid-sentence at 8 tokens, never reaching the answer. The live-agent
-                # path (sglang_server.py) can stay at 8 because it constrains output
-                # via a regex to a single enum word - this path has no such
-                # constraint and needs the extra budget instead.
-                "max_new_tokens": kwargs.get("max_tokens", self.kwargs.get("max_tokens", 150)),
+            payload = {
+                "text": text_prompt,
+                "sampling_params": {
+                    "temperature": kwargs.get("temperature", self.kwargs.get("temperature", 0.0)) or 0.0,
+                    # 150, not 8 (sglang_server.py's live-agent default): confirmed via
+                    # debug logging that unconstrained DSPy calls need real room to work
+                    # through JSONAdapter/ChatAdapter's formatting instructions before
+                    # producing an actual answer - a small model with no few-shot demos
+                    # yet was observed echoing/paraphrasing the instructions themselves
+                    # ("Do not include any text outside of the...") and getting cut off
+                    # mid-sentence at 8 tokens, never reaching the answer. The live-agent
+                    # path (sglang_server.py) can stay at 8 because it constrains output
+                    # via a regex to a single enum word - this path has no such
+                    # constraint and needs the extra budget instead.
+                    "max_new_tokens": kwargs.get("max_tokens", self.kwargs.get("max_tokens", 150)),
+                },
             }
-            json_regex = self._json_constraint_regex(messages)
-            if json_regex is not None:
-                sampling_params["regex"] = json_regex
-
-            payload = {"text": text_prompt, "sampling_params": sampling_params}
             self.call_count += 1
             resp = requests.post(f"{self.server_url}/generate", json=payload, timeout=self.timeout_s)
             resp.raise_for_status()
