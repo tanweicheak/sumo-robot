@@ -15,6 +15,13 @@ components:
 
 checkpoint_output_dir: checkpoints/ablation_no_dspy/
 
+episodes_total: 1800
+opponent_pool:
+  full_run_targets:
+    baseline1: 600
+    baseline2: 600
+    self_checkpoint: 600
+
 # --- Reduced-scope ablation - see phase4_ablation_no_sa.yaml for full rationale ------
 episodes_total: 1800
 opponent_pool:

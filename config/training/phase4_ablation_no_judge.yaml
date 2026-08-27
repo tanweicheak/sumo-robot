@@ -12,3 +12,10 @@ components:
   dspy: enabled
 
 checkpoint_output_dir: checkpoints/ablation_no_judge/
+
+episodes_total: 1800
+opponent_pool:
+  full_run_targets:
+    baseline1: 600
+    baseline2: 600
+    self_checkpoint: 600
