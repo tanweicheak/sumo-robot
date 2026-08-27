@@ -3,7 +3,8 @@
 
 # Large Model Weights & Checkpoints (Exceeds GitHub limits)
 models/
-checkpoints/
+checkpoints/*
+!checkpoints/baseline2_ppo
 
 # Data, Logs, and Caches
 logs/

@@ -389,7 +389,7 @@ Use whatever path that actually returns in every command below and in §14.
 Back in your `training` tmux session:
 
 ```bash
-python -m scripts.run_phase4_pilot --config <verified-path>/phase4_pilot.yaml --episodes-override 100 --use-wandb
+python -m scripts.run_phase4_pilot --config ./config/training/phase4_pilot.yaml --episodes-override 100 --use-wandb
 ```
 
 (`--episodes-override 100` keeps this short and cheap — a genuine
