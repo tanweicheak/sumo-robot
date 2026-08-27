@@ -82,7 +82,7 @@ def _make_sglang_native_lm_class():
             server_url: str,
             model: str = "sglang-native",
             temperature: float = 0.0,
-            max_tokens: int = 8,
+            max_tokens: int = 150,
             timeout_s: float = 30.0,
             **kwargs,
         ) -> None:
@@ -110,7 +110,17 @@ def _make_sglang_native_lm_class():
                 "text": text_prompt,
                 "sampling_params": {
                     "temperature": kwargs.get("temperature", self.kwargs.get("temperature", 0.0)) or 0.0,
-                    "max_new_tokens": kwargs.get("max_tokens", self.kwargs.get("max_tokens", 8)),
+                    # 150, not 8 (sglang_server.py's live-agent default): confirmed via
+                    # debug logging that unconstrained DSPy calls need real room to work
+                    # through JSONAdapter/ChatAdapter's formatting instructions before
+                    # producing an actual answer - a small model with no few-shot demos
+                    # yet was observed echoing/paraphrasing the instructions themselves
+                    # ("Do not include any text outside of the...") and getting cut off
+                    # mid-sentence at 8 tokens, never reaching the answer. The live-agent
+                    # path (sglang_server.py) can stay at 8 because it constrains output
+                    # via a regex to a single enum word - this path has no such
+                    # constraint and needs the extra budget instead.
+                    "max_new_tokens": kwargs.get("max_tokens", self.kwargs.get("max_tokens", 150)),
                 },
             }
             self.call_count += 1
