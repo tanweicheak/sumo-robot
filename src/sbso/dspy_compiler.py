@@ -58,11 +58,15 @@ def _make_sglang_native_lm_class():
         this adapter reuses it instead of waiting on an upstream fix.
 
         forward_contract="legacy" (DSPy's default): forward(prompt=None,
-        messages=None, **kwargs) must return one of three OpenAI-like shapes -
-        using the "OpenAI chat completion format" here, since it's the
-        simplest to build from SGLang's {"text": ...} response. Confirmed
-        against the actual installed dspy==3.3.1 BaseLM.forward docstring,
-        not assumed.
+        messages=None, **kwargs) must satisfy BaseLM._process_completion's and
+        _process_lm_response's actual attribute-access contract - confirmed
+        against the real installed dspy==3.3.1 source (not assumed from
+        possibly-mismatched docs): response.choices (each choice a dict with
+        a "text" key is explicitly supported via _process_completion's own
+        c["text"] fallback branch), response.model, and
+        getattr(response, "usage"/"cache_hit"/"_hidden_params", ...). A plain
+        dict fails this (dict.choices != dict["choices"]) - returns a
+        types.SimpleNamespace instead.
 
         Single-turn text completion only (confirmed sufficient for this
         project's SAStrategySignature/_metric use in RealDSPyCompiler.compile)
@@ -99,8 +103,7 @@ def _make_sglang_native_lm_class():
 
         def forward(self, prompt: str | None = None, messages: list[dict] | None = None, **kwargs):
             import requests
-            import time
-            import uuid
+            from types import SimpleNamespace
 
             text_prompt = self._flatten_prompt(prompt, messages)
             payload = {
@@ -117,25 +120,26 @@ def _make_sglang_native_lm_class():
             completion_text = (data.get("text") or "").strip()
             meta = data.get("meta_info", {}) or {}
 
-            return {
-                "id": f"sglang-native-{uuid.uuid4().hex[:12]}",
-                "object": "chat.completion",
-                "created": int(time.time()),
-                "model": self.model,
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {"role": "assistant", "content": completion_text},
-                        "finish_reason": meta.get("finish_reason", {}).get("type", "stop")
-                        if isinstance(meta.get("finish_reason"), dict) else "stop",
-                    }
-                ],
-                "usage": {
+            # BaseLM._process_lm_response/_process_completion (confirmed against the
+            # actual installed dspy==3.3.1 source, not assumed) does ATTRIBUTE access -
+            # response.choices, response.model, getattr(response, "usage"/"cache_hit"/
+            # "_hidden_params") - a plain dict fails these (dict.choices is not
+            # dict["choices"]). SimpleNamespace for the top-level response satisfies
+            # every confirmed access. Each choice item stays a plain dict on purpose:
+            # _process_completion's own code has an explicit c["text"] fallback branch
+            # for exactly this case (no .message attribute -> dict key instead), so a
+            # nested message/role object isn't needed here.
+            return SimpleNamespace(
+                choices=[{"text": completion_text}],
+                model=self.model,
+                usage={
                     "prompt_tokens": meta.get("prompt_tokens", 0),
                     "completion_tokens": meta.get("completion_tokens", 0),
                     "total_tokens": meta.get("prompt_tokens", 0) + meta.get("completion_tokens", 0),
                 },
-            }
+                cache_hit=False,
+                _hidden_params={},
+            )
 
     return SGLangNativeLM
 
