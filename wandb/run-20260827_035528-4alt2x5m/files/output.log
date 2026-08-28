@@ -1,0 +1,199 @@
+03:55:31 [INFO] wandb enabled - project=sumo-sbso run=sbso-benchmark2_pilot__phase4_pilot__20260827T035520Z__0b037b319578
+03:55:31 [INFO] connecting to SGLang servers (must already be running - see docstring)...
+03:55:31 [INFO] building PyBullet env...
+03:55:31 [INFO] override active: episodes=100 checkpoint_interval=100
+03:55:31 [INFO] progress -> checkpoints/benchmark2_pilot/progress.json   training_pairs -> checkpoints/benchmark2_pilot/training_pairs.jsonl   prompt_history -> checkpoints/benchmark2_pilot/prompt_history.jsonl   mcts_calibration -> checkpoints/benchmark2_pilot/mcts_calibration.jsonl
+03:55:31 [INFO] running 100 episodes (real matches, real MCTS, real Judge, real DSPy)... this will take a while.
+/workspace/venv/lib/python3.12/site-packages/torch/cuda/__init__.py:61: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+  0%|                                                                                                                             | 0/40 [00:00<?, ?it/s]2026/08/27 04:01:15 ERROR dspy.teleprompt.bootstrap: Failed to run or to evaluate example Example({'state_desc': 'opp=far,dir=FC;edge=safe;mom=still', 'strategy': 'evade_edge'}) (input_keys={'state_desc'}) with <function RealDSPyCompiler.compile.<locals>._metric at 0x7c5f9557f100> due to [sglang-agent] litellm.BadRequestError: OpenAIException - input_ids should be a list of lists for batch processing..
+  2%|██▉                                                                                                                  | 1/40 [00:21<13:54, 21.39s/it]2026/08/27 04:01:22 ERROR dspy.teleprompt.bootstrap: Failed to run or to evaluate example Example({'state_desc': 'opp=far,dir=FC;edge=safe;mom=still', 'strategy': 'evade_edge'}) (input_keys={'state_desc'}) with <function RealDSPyCompiler.compile.<locals>._metric at 0x7c5f9557f100> due to [sglang-agent] litellm.BadRequestError: OpenAIException - input_ids should be a list of lists for batch processing..
+  5%|█████▊                                                                                                               | 2/40 [00:27<07:56, 12.54s/it]2026/08/27 04:01:25 ERROR dspy.teleprompt.bootstrap: Failed to run or to evaluate example Example({'state_desc': 'opp=far,dir=FC;edge=safe;mom=still', 'strategy': 'evade_edge'}) (input_keys={'state_desc'}) with <function RealDSPyCompiler.compile.<locals>._metric at 0x7c5f9557f100> due to [sglang-agent] litellm.BadRequestError: OpenAIException - input_ids should be a list of lists for batch processing..
+  8%|████████▊                                                                                                            | 3/40 [00:30<05:07,  8.30s/it]2026/08/27 04:01:28 ERROR dspy.teleprompt.bootstrap: Failed to run or to evaluate example Example({'state_desc': 'opp=far,dir=FC;edge=safe;mom=still', 'strategy': 'evade_edge'}) (input_keys={'state_desc'}) with <function RealDSPyCompiler.compile.<locals>._metric at 0x7c5f9557f100> due to [sglang-agent] litellm.BadRequestError: OpenAIException - input_ids should be a list of lists for batch processing..
+ 10%|███████████▋                                                                                                         | 4/40 [00:34<03:46,  6.30s/it]2026/08/27 04:01:32 ERROR dspy.teleprompt.bootstrap: Failed to run or to evaluate example Example({'state_desc': 'opp=far,dir=FC;edge=safe;mom=still', 'strategy': 'evade_edge'}) (input_keys={'state_desc'}) with <function RealDSPyCompiler.compile.<locals>._metric at 0x7c5f9557f100> due to [sglang-agent] litellm.BadRequestError: OpenAIException - input_ids should be a list of lists for batch processing..
+ 12%|██████████████▋                                                                                                      | 5/40 [00:37<03:02,  5.21s/it]2026/08/27 04:01:35 ERROR dspy.teleprompt.bootstrap: Failed to run or to evaluate example Example({'state_desc': 'opp=far,dir=FC;edge=safe;mom=still', 'strategy': 'flank'}) (input_keys={'state_desc'}) with <function RealDSPyCompiler.compile.<locals>._metric at 0x7c5f9557f100> due to [sglang-agent] litellm.BadRequestError: OpenAIException - input_ids should be a list of lists for batch processing..
+ 15%|█████████████████▌                                                                                                   | 6/40 [00:40<02:34,  4.54s/it]2026/08/27 04:01:38 ERROR dspy.teleprompt.bootstrap: Failed to run or to evaluate example Example({'state_desc': 'opp=mid,dir=FC;edge=safe;mom=still', 'strategy': 'charge'}) (input_keys={'state_desc'}) with <function RealDSPyCompiler.compile.<locals>._metric at 0x7c5f9557f100> due to [sglang-agent] litellm.BadRequestError: OpenAIException - input_ids should be a list of lists for batch processing..
+ 18%|████████████████████▍                                                                                                | 7/40 [00:43<02:15,  4.11s/it]2026/08/27 04:01:41 ERROR dspy.teleprompt.bootstrap: Failed to run or to evaluate example Example({'state_desc': 'opp=mid,dir=FC;edge=safe;mom=still', 'strategy': 'retreat'}) (input_keys={'state_desc'}) with <function RealDSPyCompiler.compile.<locals>._metric at 0x7c5f9557f100> due to [sglang-agent] litellm.BadRequestError: OpenAIException - input_ids should be a list of lists for batch processing..
+ 20%|███████████████████████▍                                                                                             | 8/40 [00:47<02:02,  3.83s/it]2026/08/27 04:01:44 ERROR dspy.teleprompt.bootstrap: Failed to run or to evaluate example Example({'state_desc': 'opp=near,dir=FC;edge=safe;mom=still', 'strategy': 'hold'}) (input_keys={'state_desc'}) with <function RealDSPyCompiler.compile.<locals>._metric at 0x7c5f9557f100> due to [sglang-agent] litellm.BadRequestError: OpenAIException - input_ids should be a list of lists for batch processing..
+ 22%|██████████████████████████▎                                                                                          | 9/40 [00:53<03:04,  5.96s/it]
+Traceback (most recent call last):
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/llms/openai/openai.py", line 813, in completion
+    raise e
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/llms/openai/openai.py", line 749, in completion
+    ) = self.make_sync_openai_chat_completion_request(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/litellm_core_utils/logging_utils.py", line 336, in sync_wrapper
+    result: Final = func(*args, **kwargs)
+                    ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/llms/openai/openai.py", line 463, in make_sync_openai_chat_completion_request
+    raw_response = openai_client.chat.completions.with_raw_response.create(**data, timeout=timeout)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/openai/_legacy_response.py", line 369, in wrapped
+    return cast(LegacyAPIResponse[R], func(*args, **kwargs))
+                                      ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/openai/_utils/_utils.py", line 298, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 1296, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/openai/_base_client.py", line 1375, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/openai/_base_client.py", line 1148, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.BadRequestError: Error code: 400 - {'object': 'error', 'message': 'input_ids should be a list of lists for batch processing.', 'type': 'BadRequestError', 'param': None, 'code': 400}
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/main.py", line 5649, in completion
+    response = _complete_custom_openai(_dispatch_ctx)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/main.py", line 2562, in _complete_custom_openai
+    raise e
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/main.py", line 2534, in _complete_custom_openai
+    response = openai_chat_completions.completion(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/llms/openai/openai.py", line 824, in completion
+    raise OpenAIError(
+litellm.llms.openai.common_utils.OpenAIError: Error code: 400 - {'object': 'error', 'message': 'input_ids should be a list of lists for batch processing.', 'type': 'BadRequestError', 'param': None, 'code': 400}
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/utils.py", line 1494, in wrapper
+    result = original_function(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/main.py", line 5777, in completion
+    raise exception_type(
+          ^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py", line 2510, in exception_type
+    raise e  # it's already mapped
+    ^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py", line 2279, in exception_type
+    _map_openai_exception(
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py", line 401, in _map_openai_exception
+    raise BadRequestError(
+litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - input_ids should be a list of lists for batch processing.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/clients/lm.py", line 253, in forward
+    results = completion(
+              ^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/clients/cache.py", line 282, in sync_wrapper
+    result = fn(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/clients/lm.py", line 502, in litellm_completion
+    return _get_litellm().completion(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/utils.py", line 1601, in wrapper
+    return litellm.completion_with_retries(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/main.py", line 5811, in completion_with_retries
+    return retryer(original_function, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/tenacity/__init__.py", line 470, in __call__
+    do = self.iter(retry_state=retry_state)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/tenacity/__init__.py", line 371, in iter
+    result = action(retry_state)
+             ^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/tenacity/__init__.py", line 413, in exc_check
+    raise retry_exc.reraise()
+          ^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/tenacity/__init__.py", line 184, in reraise
+    raise self.last_attempt.result()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/_base.py", line 449, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+  File "/workspace/venv/lib/python3.12/site-packages/tenacity/__init__.py", line 473, in __call__
+    result = fn(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/utils.py", line 1648, in wrapper
+    raise e
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/utils.py", line 1494, in wrapper
+    result = original_function(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/main.py", line 5777, in completion
+    raise exception_type(
+          ^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py", line 2510, in exception_type
+    raise e  # it's already mapped
+    ^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py", line 2279, in exception_type
+    _map_openai_exception(
+  File "/workspace/venv/lib/python3.12/site-packages/litellm/litellm_core_utils/exception_mapping_utils.py", line 401, in _map_openai_exception
+    raise BadRequestError(
+litellm.exceptions.BadRequestError: litellm.BadRequestError: OpenAIException - input_ids should be a list of lists for batch processing.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/workspace/sumo-sbso/scripts/run_phase4_pilot.py", line 275, in <module>
+    main()
+  File "/workspace/sumo-sbso/scripts/run_phase4_pilot.py", line 248, in main
+    summary = trainer.run()
+              ^^^^^^^^^^^^^
+  File "/workspace/sumo-sbso/src/sbso/match_trainer.py", line 193, in run
+    candidate_prompt = self.dspy_compiler.compile(self.training_pairs, self.prompt_program)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sumo-sbso/src/sbso/dspy_compiler.py", line 151, in compile
+    compiled = teleprompter.compile(predictor, trainset=examples)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/teleprompt/teleprompt.py", line 46, in wrapper
+    return callback_fn(instance, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/utils/callback.py", line 377, in sync_wrapper
+    return fn(instance, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/teleprompt/bootstrap.py", line 89, in compile
+    self._bootstrap()
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/teleprompt/bootstrap.py", line 162, in _bootstrap
+    if self._bootstrap_one_example(example, round_idx):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/teleprompt/bootstrap.py", line 220, in _bootstrap_one_example
+    raise e
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/teleprompt/bootstrap.py", line 199, in _bootstrap_one_example
+    prediction = teacher(**example.inputs())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/predict/predict.py", line 134, in __call__
+    return super().__call__(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/utils/callback.py", line 377, in sync_wrapper
+    return fn(instance, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/primitives/module.py", line 110, in __call__
+    return self.forward(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/predict/predict.py", line 261, in forward
+    completions = adapter(lm, lm_kwargs=config, signature=signature, demos=demos, inputs=kwargs)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/adapters/chat_adapter.py", line 86, in __call__
+    return super().__call__(lm, lm_kwargs, signature, demos, inputs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/adapters/base.py", line 342, in __call__
+    response = self._call_lm(lm, request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/adapters/base.py", line 237, in _call_lm
+    outputs = lm(messages=data.pop("messages"), **data)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/utils/callback.py", line 377, in sync_wrapper
+    return fn(instance, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/clients/base_lm.py", line 364, in __call__
+    return self._legacy_call_direct(*items, prompt=prompt, messages=messages, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/clients/base_lm.py", line 441, in _legacy_call_direct
+    response = self.forward(prompt=prompt, messages=messages, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/dspy/clients/lm.py", line 261, in forward
+    raise self._wrap_litellm_exception(e) from e
+dspy.utils.exceptions.LMInvalidRequestError: [sglang-agent] litellm.BadRequestError: OpenAIException - input_ids should be a list of lists for batch processing.

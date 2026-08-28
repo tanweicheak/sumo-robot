@@ -1,0 +1,21 @@
+11:56:47 [INFO] wandb enabled - project=sumo-sbso run=sbso-benchmark2_full_sbso__phase4_pilot__20260827T115637Z__025a2ea058b0
+11:56:47 [INFO] connecting to SGLang servers (must already be running - see docstring)...
+11:56:47 [INFO] building PyBullet env...
+11:56:47 [INFO] progress -> checkpoints/benchmark2_full_sbso/progress.json   training_pairs -> checkpoints/benchmark2_full_sbso/training_pairs.jsonl   prompt_history -> checkpoints/benchmark2_full_sbso/prompt_history.jsonl   mcts_calibration -> checkpoints/benchmark2_full_sbso/mcts_calibration.jsonl
+11:56:47 [INFO] running 500 episodes (real matches, real MCTS, real Judge, real DSPy)... this will take a while.
+/workspace/venv/lib/python3.12/site-packages/torch/cuda/__init__.py:61: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/workspace/sumo-sbso/scripts/run_phase4_pilot.py", line 295, in <module>
+    main()
+  File "/workspace/sumo-sbso/scripts/run_phase4_pilot.py", line 268, in main
+    summary = trainer.run()
+              ^^^^^^^^^^^^^
+  File "/workspace/sumo-sbso/src/sbso/match_trainer.py", line 232, in run
+    self.on_episode_end(ep, self)
+  File "/workspace/sumo-sbso/scripts/run_phase4_pilot.py", line 210, in _on_episode_end
+    cost_so_far_usd = elapsed_hours * float(config["cost_projection"]["gpu_rate_usd_per_hr"])
+                                            ~~~~~~^^^^^^^^^^^^^^^^^^^
+KeyError: 'cost_projection'

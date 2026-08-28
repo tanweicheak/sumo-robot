@@ -1,0 +1,102 @@
+_wandb:
+    value:
+        cli_version: 0.28.2
+        e:
+            ol956o782tcrosesge29o09wk0se9i8q:
+                args:
+                    - --config
+                    - ./config/training/phase4_pilot.yaml
+                    - --episodes-override
+                    - "100"
+                    - --use-wandb
+                cpu_count: 48
+                cpu_count_logical: 96
+                cudaVersion: "13.0"
+                disk:
+                    /:
+                        total: "32212254720"
+                        used: "28299264"
+                email: weicheak123@gmail.com
+                executable: /workspace/venv/bin/python
+                git:
+                    commit: 864d366c1398ac87ddf9321514aff02f48524ac6
+                    remote: https://github.com/tanweicheak/sumo-robot
+                gpu: NVIDIA A40
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 10752
+                      memoryTotal: "48305799168"
+                      name: NVIDIA A40
+                      uuid: GPU-d3122047-854c-48fa-f631-595525db3824
+                host: 39071b11f8d5
+                memory:
+                    total: "540644061184"
+                os: Linux-6.8.0-117-generic-x86_64-with-glibc2.39
+                program: -m scripts.run_phase4_pilot
+                python: CPython 3.12.3
+                root: /workspace/sumo-sbso
+                startedAt: "2026-08-27T10:36:27.155559Z"
+                writerId: ol956o782tcrosesge29o09wk0se9i8q
+        m: []
+        python_version: 3.12.3
+        t:
+            "2":
+                - 1
+                - 95
+                - 105
+                - 107
+            "3":
+                - 13
+                - 16
+                - 61
+            "4": 3.12.3
+            "5": 0.28.2
+            "12": 0.28.2
+            "13": linux-x86_64
+ablation:
+    value:
+        strategy: none
+checkpoint_output_dir:
+    value: checkpoints/benchmark2_pilot/
+components:
+    value:
+        dspy: enabled
+        llm_as_a_judge: enabled
+        mcts: enabled
+cost_projection:
+    value:
+        full_episodes_per_variant: 5000
+        gpu_rate_usd_per_hr: 1
+        num_variants: 5
+dspy_recompilation:
+    value:
+        k_rollout_batches: 100
+        reward_drop_threshold_delta: 0.05
+        rolling_window_w: 50
+episodes_total:
+    value: 500
+mcts:
+    value:
+        decision_cycles: 6
+        horizon: 3
+        judge_prune_threshold: 0.3
+        max_decisions_per_match: 50
+        sim_budget: 20
+opponent_pool:
+    value:
+        full_run_targets:
+            baseline1: 1667
+            baseline2: 1667
+            self_checkpoint: 1666
+        pilot_scope:
+            - baseline1
+            - baseline2
+        warmup_episodes: 500
+        warmup_split:
+            baseline1: 250
+            baseline2: 250
+self_checkpoint_interval_episodes:
+    value: 100
+variant_name:
+    value: benchmark2_pilot

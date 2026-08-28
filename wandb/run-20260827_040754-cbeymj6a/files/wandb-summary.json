@@ -1,0 +1,1 @@
+{"_step":1,"gpu_memory_used_mb":37596,"_wandb":{"runtime":327},"_timestamp":1.7878038632630281e+09,"_runtime":327.669539145,"gpu_memory_total_mb":46068,"training_pairs_collected":24,"prompt_version":0,"rolling_winrate":1,"checkpoints_taken":0,"episode":1,"gpu_utilization_pct":20,"elapsed_hours":0.051,"cost_so_far_usd":0.05}

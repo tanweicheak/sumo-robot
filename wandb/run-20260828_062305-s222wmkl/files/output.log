@@ -1,0 +1,11 @@
+06:23:08 [INFO] wandb enabled - project=sumo-sbso run=sbso-benchmark2_pilot__phase4_pilot__20260828T062257Z__0b037b319578
+06:23:08 [INFO] connecting to SGLang servers (must already be running - see docstring)...
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/workspace/sumo-sbso/scripts/run_phase4_pilot.py", line 311, in <module>
+    main()
+  File "/workspace/sumo-sbso/scripts/run_phase4_pilot.py", line 111, in main
+    judge = SGLangJudge(server_url=sg["judge_server_url"], model_path=sg["judge_model_path"], temperature=float(sg.get("temperature", 0.0)))
+                                                                      ~~^^^^^^^^^^^^^^^^^^^^
+KeyError: 'judge_model_path'

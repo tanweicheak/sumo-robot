@@ -90,16 +90,30 @@ class RuleBasedParams:
     lead_gain: float = 0.6
 
     @classmethod
-    def randomized(cls, rng: random.Random, base: "RuleBasedParams | None" = None) -> "RuleBasedParams":
+    def randomized(
+        cls, rng: random.Random, base: "RuleBasedParams | None" = None,
+        spread_multiplier: float = 1.0,
+    ) -> "RuleBasedParams":
         """Jittered variant for opponent-diversity training (e.g. PPO baseline curriculum) -
         NOT used by default; wire this into the training script's env-reset opponent
         factory to stop PPO from overfitting to one frozen instance. Jitters within
         +/-20% of the base values (default RuleBasedParams() if none given) so each
         sampled instance is still recognizably "the same simple strategy," just a
-        different competence/aggressiveness level - not a different strategy class."""
+        different competence/aggressiveness level - not a different strategy class.
+
+        spread_multiplier: scales every jitter spread uniformly. Default 1.0
+        reproduces the exact original +/-20%/+/-10%/+/-50% ranges for every existing
+        caller - added for SBSO training specifically (see run_phase4_pilot.py),
+        which opts into a wider range for genuine difficulty diversity; PPO's
+        training and any evaluation usage of this function are unaffected unless
+        they explicitly pass a non-1.0 value themselves. At spread_multiplier=2.0,
+        lead_gain's effective range covers 0.0 (pure reactive, the weakest variant
+        this archetype supports per this file's own note) up to 2x base - a real,
+        bounded difficulty range, not unbounded."""
         base = base or cls()
 
         def jitter(value: float, spread: float = 0.20) -> float:
+            spread = spread * spread_multiplier
             return value * rng.uniform(1.0 - spread, 1.0 + spread)
 
         return cls(
@@ -311,17 +325,24 @@ def make_rule_based_policy(params: RuleBasedParams | None = None):
     return controller
 
 
-def make_randomized_opponent_factory(seed: int = 0, base: RuleBasedParams | None = None):
+def make_randomized_opponent_factory(
+    seed: int = 0, base: RuleBasedParams | None = None, spread_multiplier: float = 1.0,
+):
     """Returns a zero-arg callable that produces a FRESH randomized RuleBasedController
     each time it's called - drop this into the PPO training script's env-reset hook
     (e.g. `opponent_policy = opponent_factory()` inside a VecEnv reset callback) so PPO
     trains against a variety of rule-based competence levels instead of one frozen
     instance. Not wired into any training script here - scripts/run_phase1_baselines.py
-    (not present in this project upload) is where that wiring belongs."""
+    (not present in this project upload) is where that wiring belongs.
+
+    spread_multiplier: forwarded to RuleBasedParams.randomized() - default 1.0
+    preserves original behavior for existing callers; see that method's docstring."""
     rng = random.Random(seed)
 
     def _factory() -> RuleBasedController:
-        controller = RuleBasedController(params=RuleBasedParams.randomized(rng, base))
+        controller = RuleBasedController(
+            params=RuleBasedParams.randomized(rng, base, spread_multiplier)
+        )
         controller.reset()
         return controller
 

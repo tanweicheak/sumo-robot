@@ -426,8 +426,8 @@ def validate_prompt_candidate(
         # PerceptionState fields are structurally required but not consulted for
         # this prompt, so neutral placeholders here don't affect the comparison.
         perception = PerceptionState(
-            lssd_text=lssd_text, opp_distance=DistanceLabel.MID, opp_direction=DirectionLabel.CENTER,
-            edge=EdgeLabel.SAFE, momentum=MomentumLabel.STABLE, opp_distance_m=1.0,
+            lssd_text=lssd_text, opp_distance=DistanceLabel.MID, opp_direction=DirectionLabel.FRONT_CENTER,
+            edge=EdgeLabel.SAFE, momentum=MomentumLabel.STILL, opp_distance_m=1.0,
         )
         incumbent_decision = incumbent_agent.decide(perception, prev_oaa=None)
         candidate_decision = candidate_agent.decide(perception, prev_oaa=None)

@@ -1,0 +1,43 @@
+{
+  "os": "Linux-6.8.0-117-generic-x86_64-with-glibc2.39",
+  "python": "CPython 3.12.3",
+  "startedAt": "2026-08-27T11:56:44.856214Z",
+  "args": [
+    "--config",
+    "config/training/phase4_full_sbso.yaml",
+    "--use-wandb"
+  ],
+  "program": "-m scripts.run_phase4_pilot",
+  "git": {
+    "remote": "https://github.com/tanweicheak/sumo-robot",
+    "commit": "2d8531ce50cafa2f3fbe930b93123384b49888cc"
+  },
+  "email": "weicheak123@gmail.com",
+  "root": "/workspace/sumo-sbso",
+  "host": "39071b11f8d5",
+  "executable": "/workspace/venv/bin/python",
+  "cpu_count": 48,
+  "cpu_count_logical": 96,
+  "gpu": "NVIDIA A40",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "32212254720",
+      "used": "28315648"
+    }
+  },
+  "memory": {
+    "total": "540644061184"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA A40",
+      "memoryTotal": "48305799168",
+      "cudaCores": 10752,
+      "architecture": "Ampere",
+      "uuid": "GPU-d3122047-854c-48fa-f631-595525db3824"
+    }
+  ],
+  "cudaVersion": "13.0",
+  "writerId": "ltwrqx0twk9rkx1ltqc0b8n5xylpr23q"
+}

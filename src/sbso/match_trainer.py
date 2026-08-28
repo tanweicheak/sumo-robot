@@ -128,6 +128,9 @@ class MatchLevelSBSOTrainer:
         for ep in range(self.episodes):
             ep_t0 = time.perf_counter()
             opp_type = self.opponent_pool.sample(ep, self.checkpoint_mgr.has_checkpoint())
+            self.last_opponent_type = opp_type   # exposed for _on_episode_end callbacks -
+                                                   # previously local-only, no way to log
+                                                   # which opponent a given episode played
             self.env.opponent_policy = self.opponent_factory(opp_type)
             self.env.reset()
             self._ir_filter.reset()

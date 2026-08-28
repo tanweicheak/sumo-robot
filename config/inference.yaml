@@ -83,7 +83,7 @@ sglang:
     startup_timeout_s: 300
     agent_port: 30000
     agent_mem_fraction_static: 0.45
-    judge_model_path: models/llama-3.1-8b-instruct-hf
+    judge_model_path: /workspace/models/llama-3.1-8b-instruct-hf
     judge_port: 30001
     judge_mem_fraction_static: 0.45
     host: 0.0.0.0

@@ -1,0 +1,19 @@
+07:05:56 [INFO] wandb enabled - project=sumo-sbso run=sbso-benchmark2_pilot__phase4_pilot__20260827T070543Z__0b037b319578
+07:05:56 [INFO] connecting to SGLang servers (must already be running - see docstring)...
+07:05:56 [INFO] building PyBullet env...
+07:05:56 [INFO] override active: episodes=100 checkpoint_interval=100
+07:05:56 [INFO] progress -> checkpoints/benchmark2_pilot/progress.json   training_pairs -> checkpoints/benchmark2_pilot/training_pairs.jsonl   prompt_history -> checkpoints/benchmark2_pilot/prompt_history.jsonl   mcts_calibration -> checkpoints/benchmark2_pilot/mcts_calibration.jsonl
+07:05:56 [INFO] running 100 episodes (real matches, real MCTS, real Judge, real DSPy)... this will take a while.
+/workspace/venv/lib/python3.12/site-packages/torch/cuda/__init__.py:61: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+ 92%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▊           | 37/40 [01:17<00:06,  2.10s/it]
+Bootstrapped 4 full traces after 37 examples for up to 1 rounds, amounting to 37 attempts.
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 48/48 [01:24<00:00,  1.76s/it]
+Bootstrapped 3 full traces after 47 examples for up to 1 rounds, amounting to 48 attempts.
+ 36%|█████████████████████████████████████████████████████▎                                                                                                | 16/45 [00:30<00:55,  1.91s/it]
+Bootstrapped 4 full traces after 16 examples for up to 1 rounds, amounting to 16 attempts.
+100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 50/50 [00:54<00:00,  1.08s/it]
+Bootstrapped 0 full traces after 49 examples for up to 1 rounds, amounting to 50 attempts.
+09:58:54 [INFO] summary: {'episodes': 100, 'training_pairs': 1616, 'dspy_recompiles': 4, 'checkpoints': 0, 'total_wall_seconds': 10377.36, 'avg_episode_seconds': 101.148, 'avg_decision_seconds': 6.234}
+09:58:54 [INFO] wrote calibration texts -> checkpoints/benchmark2_pilot/gptq_calibration_texts.txt
+09:58:54 [INFO] PROJECTED FULL RUN (5 variants x 5000 eps): {'sec_per_episode': 103.774, 'full_episodes_total': 25000, 'projected_hours': 720.65, 'projected_cost_usd': 720.65, 'gpu_rate_usd_per_hr': 1.0}

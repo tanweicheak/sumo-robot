@@ -1,0 +1,49 @@
+03:30:38 [INFO] wandb enabled - project=sumo-sbso run=sbso-benchmark2_pilot__phase4_pilot__20260827T032955Z__0b037b319578
+03:30:38 [INFO] connecting to SGLang servers (must already be running - see docstring)...
+03:30:38 [INFO] building PyBullet env...
+03:30:39 [INFO] override active: episodes=100 checkpoint_interval=100
+03:30:39 [INFO] progress -> checkpoints/benchmark2_pilot/progress.json   training_pairs -> checkpoints/benchmark2_pilot/training_pairs.jsonl   prompt_history -> checkpoints/benchmark2_pilot/prompt_history.jsonl   mcts_calibration -> checkpoints/benchmark2_pilot/mcts_calibration.jsonl
+03:30:39 [INFO] running 100 episodes (real matches, real MCTS, real Judge, real DSPy)... this will take a while.
+/workspace/venv/lib/python3.12/site-packages/torch/cuda/__init__.py:61: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/workspace/sumo-sbso/scripts/run_phase4_pilot.py", line 288, in <module>
+    main()
+  File "/workspace/sumo-sbso/scripts/run_phase4_pilot.py", line 261, in main
+    summary = trainer.run()
+              ^^^^^^^^^^^^^
+  File "/workspace/sumo-sbso/src/sbso/match_trainer.py", line 131, in run
+    self.env.opponent_policy = self.opponent_factory(opp_type)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sumo-sbso/scripts/run_phase4_pilot.py", line 58, in factory
+    _ppo_cache["ppo"] = PPOController.load(
+                        ^^^^^^^^^^^^^^^^^^^
+  File "/workspace/sumo-sbso/src/baselines/ppo_controller.py", line 86, in load
+    model = PPO.load(str(model_path), device="cpu")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/stable_baselines3/common/base_class.py", line 681, in load
+    data, params, pytorch_variables = load_from_zip_file(
+                                      ^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/stable_baselines3/common/save_util.py", line 403, in load_from_zip_file
+    file = open_path(load_path, "r", verbose=verbose, suffix="zip")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/functools.py", line 909, in wrapper
+    return dispatch(args[0].__class__)(*args, **kw)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/stable_baselines3/common/save_util.py", line 240, in open_path_str
+    return open_path_pathlib(pathlib.Path(path), mode, verbose, suffix)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/stable_baselines3/common/save_util.py", line 291, in open_path_pathlib
+    return open_path_pathlib(path, mode, verbose, suffix)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/venv/lib/python3.12/site-packages/stable_baselines3/common/save_util.py", line 272, in open_path_pathlib
+    raise error
+  File "/workspace/venv/lib/python3.12/site-packages/stable_baselines3/common/save_util.py", line 264, in open_path_pathlib
+    return open_path(path.open("rb"), mode, verbose, suffix)
+                     ^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'checkpoints/baseline2_ppo/ppo_baseline2.zip.zip'
