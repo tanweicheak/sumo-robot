@@ -26,5 +26,19 @@ mcts:
   decision_cycles: 6              # physical control cycles executed per macro-decision
   max_decisions_per_match: 50     # safety cap; match also ends on win/loss/timeout
 
+# Added: previously only defined in phase4_pilot.yaml, never here. gpu_rate_usd_per_hr
+# was added first, after crashing every non-pilot config's first _on_episode_end call.
+# full_episodes_per_variant/num_variants are added now, after the SAME class of gap
+# crashed a second time - this time only at run COMPLETION (main()'s final summary
+# print calls project_full_run(cp["full_episodes_per_variant"], ...) via direct dict
+# access, not .get() with a fallback to that function's own defaults) - invisible
+# until a real run actually finished, unlike gpu_rate_usd_per_hr which crashed every
+# episode. Values below match project_full_run()'s own function-signature defaults in
+# cost_projection.py, not phase4_pilot.yaml's pilot-scale numbers (5000/5) - these
+# describe the REAL full-run scale this config governs (500 episodes x 4 kept
+# variants), used only for the end-of-run cost projection printout, not training
+# itself.
 cost_projection:
   gpu_rate_usd_per_hr: 0.44
+  full_episodes_per_variant: 500
+  num_variants: 4

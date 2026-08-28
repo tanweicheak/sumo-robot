@@ -176,3 +176,8 @@ result. Recommended framing for report.md's 3.6 Limitations section:
 > thinner self-checkpoint curriculum (~3 generations versus ~10) for each ablated
 > variant, which is disclosed as a limitation on the precision of each component's
 > isolated contribution."
+
+## DSPy
+k_rollout_batches: 25 — Trigger (a), the simple one: recompile every K episodes, on a fixed schedule, regardless of how training is going. At 25, that's a recompile attempt roughly every 25 episodes — 20 times across your 500-episode run.
+rolling_window_w: 100 — The size of the sliding window used to compute a rolling average win rate (self._rolling_winrate(), the same function feeding your wandb rolling_winrate chart) — averaged over the last 100 episodes' win/loss outcomes.
+reward_drop_threshold_delta: 0.05 — Trigger (b): compares the current rolling win rate against a recent baseline: if it's dropped by more than 0.05 (5 percentage points), that alone triggers an extra, off-schedule recompile attempt, independent of where you are in the K-episode cycle — a reactive "something's going wrong, try fixing the prompt now" mechanism.

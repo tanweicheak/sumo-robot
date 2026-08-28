@@ -449,17 +449,23 @@ fields if you logged in for §9) told you roughly what to expect for each.
 ## 15. After training — export the model (Benchmark 2 only, not the ablations)
 
 ```bash
-python scripts/run_export_pipeline.py --config config/export_pipeline.yaml
-```
+python -m scripts.run_export_pipeline \
+    --adapter-path checkpoints/benchmark2_full_sbso/lora_run/lora_adapters \
+    --output-dir /workspace/export/benchmark2_full_sbso \
+    --calibration-texts-file checkpoints/benchmark2_full_sbso/gptq_calibration_texts.txt \
+    --config config/export_pipeline.yaml
+    ```
 
 This runs merge → {GPTQ INT4, GGUF-f16 → Q4_K_M} per the two-branch export
 in the pipeline report. Verify the result:
 
 ```bash
-python -m scripts.validate_quantization_quality \
-    --fp16-gguf-path checkpoints/benchmark2_full_sbso/gguf/model-f16.gguf \
-    --quantized-gguf-path checkpoints/benchmark2_full_sbso/gguf/model-Q4_K_M.gguf \
-    --validation-prompts checkpoints/benchmark2_full_sbso/training_pairs.jsonl
+python -m scripts.back_to_hub \
+    --repo-id tanweicheak/sumo-sbso-benchmark2 \
+    --adapter-dir checkpoints/benchmark2_full_sbso/lora_run/lora_adapters \
+    --merged-dir checkpoints/benchmark2_full_sbso/merged_fp16 \
+    --gguf-dir /workspace/export/benchmark2_full_sbso \
+    --extra-dir checkpoints/benchmark2_full_sbso:jsonl_logs
 ```
 
 ---
@@ -471,36 +477,32 @@ most expensive-to-regenerate artifacts specifically — run once after
 training completes:
 ```bash
 hf auth login
+
+bash
 python -m scripts.back_to_hub \
     --repo-id tanweicheak/sumo-sbso-benchmark2 \
     --adapter-dir checkpoints/benchmark2_full_sbso/lora_run/lora_adapters \
     --merged-dir checkpoints/benchmark2_full_sbso/merged_fp16 \
     --extra-dir checkpoints/benchmark2_full_sbso:jsonl_logs
-```
-
-```bash
+bash
 python -m scripts.back_to_hub \
     --repo-id tanweicheak/sumo-sbso-ablation-no-mcts \
-    --adapter-dir checkpoints/benchmark2_full_sbso/lora_run/lora_adapters \
-    --merged-dir checkpoints/benchmark2_full_sbso/merged_fp16 \
-    --extra-dir checkpoints/benchmark2_full_sbso:jsonl_logs
-```
-
-```bash
+    --adapter-dir checkpoints/ablation_no_mcts/lora_run/lora_adapters \
+    --merged-dir checkpoints/ablation_no_mcts/merged_fp16 \
+    --extra-dir checkpoints/ablation_no_mcts:jsonl_logs
+bash
 python -m scripts.back_to_hub \
     --repo-id tanweicheak/sumo-sbso-ablation-no-dspy \
-    --adapter-dir checkpoints/benchmark2_full_sbso/lora_run/lora_adapters \
-    --merged-dir checkpoints/benchmark2_full_sbso/merged_fp16 \
-    --extra-dir checkpoints/benchmark2_full_sbso:jsonl_logs
-```
-
-```bash
+    --adapter-dir checkpoints/ablation_no_dspy/lora_run/lora_adapters \
+    --merged-dir checkpoints/ablation_no_dspy/merged_fp16 \
+    --extra-dir checkpoints/ablation_no_dspy:jsonl_logs
+bash
 python -m scripts.back_to_hub \
     --repo-id tanweicheak/sumo-sbso-ablation-no-judge \
-    --adapter-dir checkpoints/benchmark2_full_sbso/lora_run/lora_adapters \
-    --merged-dir checkpoints/benchmark2_full_sbso/merged_fp16 \
-    --extra-dir checkpoints/benchmark2_full_sbso:jsonl_logs
-```
+    --adapter-dir checkpoints/ablation_no_judge/lora_run/lora_adapters \
+    --merged-dir checkpoints/ablation_no_judge/merged_fp16 \
+    --extra-dir checkpoints/ablation_no_judge:jsonl_logs
+
 
 
 **If using Volume Disk only (no Network Volume):** this step is not
