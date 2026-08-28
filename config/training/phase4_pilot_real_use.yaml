@@ -1,8 +1,3 @@
-# Phase 4 PILOT - 1 variant x 500 episodes, purpose: measure real wall-clock time and
-# extrapolate cost for the full 5x5000-episode run BEFORE committing RunPod spend.
-# Opponent pool scoped to Baseline 1/2 only (self-checkpoint-as-opponent needs the full
-# real SLM pipeline as an opponent controller - deferred to the full run to keep the
-# pilot's cost profile honest and comparable across timing runs).
 variant_name: benchmark2_pilot
 extends: _shared_defaults.yaml
 
@@ -14,7 +9,16 @@ mcts:
   horizon: 3
   judge_prune_threshold: 0.3
   decision_cycles: 6              # physical control cycles executed per macro-decision
-  max_decisions_per_match: 90     # safety cap; match also ends on win/loss/timeout
+  # TEMPORARY diagnostic bump from 50 - every episode in the prior pilot run hit the
+  # 50-decision ceiling with ZERO real win/loss/draw resolutions (confirmed: all 850
+  # logged decisions showed match_outcome="draw", decision_index maxing at 49 on
+  # every single episode with zero variance). Testing whether matches simply need
+  # more simulated time to resolve naturally, before assuming a deeper behavioral or
+  # physics problem. Revert to 50 (or whatever value real testing settles on) once
+  # this is understood - do not leave at 90 for a real training run without
+  # confirming this is the right number, not just "big enough to make the symptom
+  # go away."
+  max_decisions_per_match: 50
 
 dspy_recompilation:
   k_rollout_batches: 100    # override _shared_defaults' 500, so DSPy visibly fires ~5x in the pilot
