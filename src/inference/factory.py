@@ -46,6 +46,7 @@ def build_slm_client(config_path: str | Path = _DEFAULT_INFERENCE_CONFIG) -> SLM
         sg = cfg["sglang"]
         return SGLangSLMClient(
             server_url=sg["agent_server_url"],
+            model_path=sg["launch"]["agent_model_path"],
             temperature=float(sg.get("temperature", 0.0)),
             max_tokens=int(sg.get("max_tokens", 8)),
             timeout_s=float(sg.get("timeout_s", 30.0)),

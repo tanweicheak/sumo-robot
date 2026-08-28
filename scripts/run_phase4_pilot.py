@@ -96,9 +96,8 @@ def main() -> None:
     sg = inference_cfg["sglang"]
 
     logger.info("connecting to SGLang servers (must already be running - see docstring)...")
-    judge = SGLangJudge(server_url=sg["judge_server_url"], temperature=float(sg.get("temperature", 0.0)))
-
-    dspy_compiler = RealDSPyCompiler(sglang_api_base=f"{sg['agent_server_url']}/v1")
+    judge = SGLangJudge(server_url=sg["judge_server_url"], model_path=sg["judge_model_path"], temperature=float(sg.get("temperature", 0.0)))
+    dspy_compiler = RealDSPyCompiler(sglang_api_base=f"{sg['agent_server_url']}/v1", llama_model_path=sg["agent_model_path"])
 
     logger.info("building PyBullet env...")
     env_cfg = EnvConfig.from_config(use_gui=False, enable_reward_shaping=False)
