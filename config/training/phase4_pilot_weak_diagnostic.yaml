@@ -1,0 +1,41 @@
+# DIAGNOSTIC ONLY - not a real training config, not used for RQ1/RQ2/RQ3 results.
+# Tests whether SBSO's exploit-discovery mechanism (MCTS/Judge/DSPy) shows real,
+# measurable improvement against a deliberately weakened rule-based opponent,
+# before concluding it can't handle standard-strength baseline1.
+#
+# IMPORTANT: opponent_pool.pilot_scope does NOT control sampling -
+# OpponentPool.sample() hardcodes choices=["baseline1","baseline2"] internally.
+# Forcing every episode to baseline1_weak requires the env var below, NOT a
+# config key - see run command in the accompanying instructions.
+variant_name: benchmark2_pilot_weak_diagnostic
+extends: _shared_defaults.yaml
+
+episodes_total: 20
+self_checkpoint_interval_episodes: 100   # effectively disabled for this short diagnostic
+
+mcts:
+  sim_budget: 20
+  horizon: 3
+  judge_prune_threshold: 0.3
+  decision_cycles: 6
+  max_decisions_per_match: 90    # matches the corrected value from the draw-default fix
+
+dspy_recompilation:
+  k_rollout_batches: 5           # fire recompiles quickly given only 20 episodes
+  reward_drop_threshold_delta: 0.05
+  rolling_window_w: 10
+
+ablation:
+  strategy: none
+
+components:
+  mcts: enabled
+  llm_as_a_judge: enabled
+  dspy: enabled
+
+checkpoint_output_dir: checkpoints/benchmark2_pilot_weak_diagnostic/
+
+cost_projection:
+  full_episodes_per_variant: 5000
+  num_variants: 5
+  gpu_rate_usd_per_hr: 0.44
