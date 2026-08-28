@@ -30,7 +30,7 @@ lssd_thresholds:
 episode:
   sim_timestep_s: 0.00416666667           # 1/240 s
   control_dt_s: 0.05                       # 50 ms decision window
-  max_episode_seconds: 15.0                # avg match duration per report
+  max_episode_seconds: 27.0                # TEMP diagnostic (was 15.0, per-report average) - raised to match the max_decisions_per_match=90 test; real env-level truncation was the actual cap forcing draw outcomes at decision_index 49, independent of max_decisions_per_match
   spawn_offset_m: 0.6                      # each robot this far from center
 
 # --- Optional PPO reward shaping (Baseline 2 training only) ---

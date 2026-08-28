@@ -59,9 +59,15 @@ def _load_attacker_policy(args: argparse.Namespace):
                 "load_benchmark_opponent refuses to silently evaluate benchmark2 as "
                 "zero-shot. See src/evaluation/match_runner.py's docstring."
             )
+        if not args.agent_model_path:
+            raise SystemExit(
+                f"--attacker {args.attacker} requires --agent-model-path (the HF "
+                "directory the sglang-agent-url server was launched with)."
+            )
         return load_benchmark_opponent(
             args.attacker,
             sglang_agent_url=args.sglang_agent_url,
+            agent_model_path=args.agent_model_path,
             prompt_history_path=args.prompt_history_path,
         )
 
@@ -75,6 +81,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--ppo-vecnorm-path", default=None)
     p.add_argument("--sglang-agent-url", default=None,
                     help="Required for --attacker benchmark1/benchmark2, e.g. http://localhost:30000")
+    p.add_argument("--agent-model-path", default=None,
+                    help="Required for --attacker benchmark1/benchmark2 - the HF model directory "
+                         "the sglang-agent-url server was launched with, e.g. "
+                         "/workspace/export/benchmark2_full_sbso/merged_fp16")
     p.add_argument("--prompt-history-path", default=None,
                     help="Required for --attacker benchmark2 only - path to the trained variant's "
                          "prompt_history.jsonl, e.g. checkpoints/benchmark2_full_sbso/prompt_history.jsonl")

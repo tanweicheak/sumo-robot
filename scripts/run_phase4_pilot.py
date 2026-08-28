@@ -26,7 +26,9 @@ from pathlib import Path
 from scripts._script_common import build_run, poll_gpu_stats, setup_logging
 from src.agents.schemas import MacroStrategy
 from src.baselines.ppo_controller import PPOController
-from src.baselines.rule_based_controller import make_randomized_opponent_factory
+from src.baselines.rule_based_controller import (
+    make_randomized_opponent_factory, RuleBasedParams,
+)
 from src.common.config_loader import load_config
 from src.data.lssd_encoder import LSSDEncoder
 from src.finetuning.calibration_texts import write_calibration_file
@@ -60,11 +62,39 @@ def _make_opponent_factory():
     _cache = {}
 
     def factory(opp_type: str):
+        import os
+        # DIAGNOSTIC OVERRIDE: OpponentPool.sample() hardcodes choices=["baseline1",
+        # "baseline2"] internally (see opponent_pool.py) - no config key actually
+        # controls this, so opponent_pool.pilot_scope in a YAML does NOT restrict
+        # sampling. This env-var redirect is the safe way to force every episode to
+        # the weak tier for a diagnostic run, WITHOUT editing OpponentPool.sample()
+        # itself (a well-established, working file - not touching it deliberately).
+        # Only active if SBSO_FORCE_WEAK_OPPONENT=1 is set; a normal run is
+        # completely unaffected.
+        if os.environ.get("SBSO_FORCE_WEAK_OPPONENT") == "1":
+            opp_type = "baseline1_weak"
+
         if "rb_factory" not in _cache:
             _cache["rb_factory"] = make_randomized_opponent_factory(seed=0, spread_multiplier=2.0)
 
         if opp_type == "baseline1":
             return _cache["rb_factory"]()
+        if opp_type == "baseline1_weak":
+            # Diagnostic-only tier: deliberately weakened base instance, testing
+            # whether SBSO's exploit-discovery mechanism shows real improvement
+            # against an easier target. NOT used by any real training config -
+            # standard baseline1 above is unaffected and remains the real
+            # RQ1/RQ2 comparison baseline.
+            if "rb_weak_factory" not in _cache:
+                weak_base = RuleBasedParams(
+                    detect_range_m=RuleBasedParams().detect_range_m * 0.6,
+                    charge_speed=0.6,
+                    turn_speed=RuleBasedParams().turn_speed * 0.7,
+                )
+                _cache["rb_weak_factory"] = make_randomized_opponent_factory(
+                    seed=1, base=weak_base, spread_multiplier=1.0,
+                )
+            return _cache["rb_weak_factory"]()
         if opp_type == "baseline2":
             if "ppo" not in _cache:
                 _cache["ppo"] = PPOController.load(

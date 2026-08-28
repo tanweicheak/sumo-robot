@@ -116,6 +116,8 @@ class SLMPolicyOpponent:
         #    already tolerate that (same cold-start condition live inference hits
         #    on frame 0).
         macro = self.sa.decide(perception, state.prev_opponent_analysis)
+        self._last_strategy = macro.strategy   # exposed for external logging -
+                                                 # see scripts/run_phase5_eval.py
         state.prev_opponent_analysis = opponent_analysis
 
         # 4. TEA - macro strategy -> tactical command.
@@ -132,6 +134,7 @@ class SLMPolicyOpponent:
 def load_benchmark_opponent(
     benchmark: Literal["benchmark1", "benchmark2"],
     sglang_agent_url: str,
+    agent_model_path: str,
     *,
     perception_config_path: str | None = None,
     prompt_history_path: str | None = None,
@@ -158,7 +161,7 @@ def load_benchmark_opponent(
     checkpoint `sglang_agent_url`'s server was launched against (see module
     docstring) - no other code branching.
     """
-    client = SGLangSLMClient(server_url=sglang_agent_url)
+    client = SGLangSLMClient(server_url=sglang_agent_url, model_path=agent_model_path)
 
     prompt_program = None
     if benchmark == "benchmark2":
@@ -184,12 +187,40 @@ def load_benchmark_opponent(
 
 
 def _load_final_prompt_program(prompt_history_path: str) -> str:
-    """Reads prompt_history.jsonl (one JSON object per episode, each with a
-    "prompt_program" field - confirmed against run_phase4_pilot.py's own
-    _on_episode_end logging) and returns the LAST entry's compiled prompt - i.e.
-    whatever DSPy had converged to by the end of training. Raises clearly rather
-    than silently falling back to None if the file is empty/missing, since a silent
-    None here is exactly the bug this function exists to prevent."""
+    """CORRECTED: prompt_history.jsonl's real schema (confirmed against actual
+    written data) is {episode, trigger_reason, prompt_version, rolling_winrate,
+    accepted, validation} - it never contains a prompt_program field at all, despite
+    this function's original docstring claiming otherwise. The real compiled prompt
+    text is written to progress.json instead (format: {"episode": N,
+    "prompt_program": "SA_PROMPT_VN\n...", ...}), but only periodically - at
+    self_checkpoint_interval_episodes boundaries and episode 0 - NOT every episode.
+    This function now reads progress.json and returns its prompt_program value,
+    which is the LAST periodic snapshot taken, not necessarily the exact final
+    episode's prompt if training continued past the last snapshot before ending.
+    Despite the parameter name (kept for call-site compatibility), pass the
+    checkpoint's progress.json path here, not prompt_history.jsonl's path."""
+    import json
+    from pathlib import Path
+
+    path = Path(prompt_history_path)
+    if not path.exists():
+        raise FileNotFoundError(f"progress.json not found at {path}")
+
+    with path.open() as f:
+        data = json.load(f)
+    program = data.get("prompt_program")
+    if not program:
+        raise ValueError(
+            f"{path} has no prompt_program value - training may not have reached "
+            "its first checkpoint interval, or this is the wrong file."
+        )
+    return program
+
+
+def _load_final_prompt_program_OLD_UNUSED(prompt_history_path: str) -> str:
+    """Superseded - see _load_final_prompt_program above. Kept only so the
+    remainder of this file's original loop-based parsing code doesn't need
+    re-indenting; never called."""
     import json
     from pathlib import Path
 
