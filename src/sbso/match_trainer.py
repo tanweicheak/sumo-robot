@@ -81,6 +81,8 @@ class MatchLevelSBSOTrainer:
         self.training_pairs: list = []
         self.prompt_program = "SA_BASE_PROMPT"
         self.prompt_version = 0
+        self._episode_outcomes: dict = {}   # episode -> outcome_value (1.0/0.5/0.0),
+                                              # for DSPy's outcome-aware example filter
         self.recompile_history: list[dict] = []
         self.mcts_calibration_log: list[dict] = []
         self.dominant_strategy: Optional[str] = None
@@ -181,6 +183,7 @@ class MatchLevelSBSOTrainer:
                     break
 
             outcome_value = {"win": 1.0, "draw": 0.5, "loss": 0.0}.get(outcome, 0.5)
+            self._episode_outcomes[ep] = outcome_value
             for entry in episode_calibration_buffer:
                 entry["episode"] = ep
                 entry["match_outcome"] = outcome
@@ -193,7 +196,10 @@ class MatchLevelSBSOTrainer:
             if self.ablation.dspy_enabled:
                 do, why = self.scheduler.should_recompile(ep, self._rolling_winrate())
                 if do:
-                    candidate_prompt = self.dspy_compiler.compile(self.training_pairs, self.prompt_program)
+                    candidate_prompt = self.dspy_compiler.compile(
+                        self.training_pairs, self.prompt_program,
+                        episode_outcomes=self._episode_outcomes,
+                    )
                     candidate_dominant_strategy = getattr(self.dspy_compiler, "last_dominant_strategy", None)
 
                     validation = None

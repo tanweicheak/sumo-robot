@@ -336,11 +336,27 @@ class RealDSPyCompiler(DSPyCompiler):
             selected.extend(by_episode[ep][-per_match_cap:])
         return selected[-max_total:]
 
-    def compile(self, training_pairs: list, current_prompt: str) -> str:
+    def compile(self, training_pairs: list, current_prompt: str, episode_outcomes: dict | None = None) -> str:
         import dspy
 
         self._ensure_lm()
         self.compile_count += 1
+
+        # Outcome-aware filter: only use examples from WON episodes, not every
+        # episode regardless of outcome. Real, evidenced fix for the strategic
+        # lock-in finding - DSPy was previously trained to imitate whatever MCTS
+        # chose regardless of win/loss/draw. Backward compatible: falls back to the
+        # full, unfiltered training_pairs if episode_outcomes is empty (e.g. no
+        # wins yet early in training) or not passed at all.
+        if episode_outcomes:
+            won_episodes = {ep for ep, val in episode_outcomes.items() if val == 1.0}
+            filtered = [
+                entry for entry in training_pairs
+                if len(entry) == 3 and entry[0] in won_episodes
+            ]
+            if filtered:
+                training_pairs = filtered
+            # else: no won episodes yet - proceed with the full, unfiltered set
 
         class SAStrategySignature(dspy.Signature):
             """Select the macro strategy for a sumo robot given its LSSD state."""
