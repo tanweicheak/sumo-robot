@@ -25,7 +25,7 @@ from pathlib import Path
 from scripts._script_common import build_run, poll_gpu_stats, setup_logging
 from src.agents.schemas import MacroStrategy
 from src.baselines.ppo_controller import PPOController
-from src.baselines.rule_based_controller import make_rule_based_policy
+from src.baselines.rule_based_controller import make_randomized_opponent_factory
 from src.common.config_loader import load_config
 from src.data.lssd_encoder import LSSDEncoder
 from src.finetuning.calibration_texts import write_calibration_file
@@ -45,23 +45,39 @@ from src.simulation.sumo_env import EnvConfig, PyBulletSumoEnv
 STRATEGIES = list(MacroStrategy)
 
 
-def _make_opponent_factory(pilot_scope: list[str]):
+def _make_opponent_factory():
     """Returns a function mapping opponent_type_str -> opponent_policy callable.
-    Scoped to Baseline 1/2 only for the pilot (see config header note)."""
-    _ppo_cache = {}
+    Reused across baseline1 and the self_checkpoint fallback below - both call
+    make_randomized_opponent_factory() (a FRESH randomized instance each call, not
+    a single frozen one) instead of the original bare make_rule_based_policy() -
+    confirmed root cause of a 0% win rate against baseline1/self_checkpoint in a
+    real completed training run (see session notes): a single frozen
+    RuleBasedParams instance is exactly the anti-pattern
+    rule_based_controller.py's own docstring warns against. This scope is
+    invariant between pilot and full run - not read from config["opponent_pool"]
+    ["pilot_scope"] (a pilot-only key that doesn't exist on other configs and
+    caused a KeyError there previously)."""
+    from src.baselines.rule_based_controller import make_randomized_opponent_factory
+    _cache = {}
 
     def factory(opp_type: str):
+        if "rb_factory" not in _cache:
+            _cache["rb_factory"] = make_randomized_opponent_factory(seed=0, spread_multiplier=2.0)
+
         if opp_type == "baseline1":
-            return make_rule_based_policy()
+            return _cache["rb_factory"]()
         if opp_type == "baseline2":
-            if "ppo" not in _ppo_cache:
-                _ppo_cache["ppo"] = PPOController.load(
+            if "ppo" not in _cache:
+                _cache["ppo"] = PPOController.load(
                     "checkpoints/baseline2_ppo/ppo_baseline2.zip",
                     "checkpoints/baseline2_ppo/vecnormalize.pkl",
                 )
-            return _ppo_cache["ppo"]
-        # self_checkpoint would go here in the full run; pilot excludes it.
-        return make_rule_based_policy()
+            return _cache["ppo"]
+        # self_checkpoint lands here (real match continuation still falls back to
+        # rule-based - see opponent_pool.py's documented limitation, NOT changed by
+        # this fix). Now randomized rather than a second frozen instance identical
+        # to baseline1's.
+        return _cache["rb_factory"]()
 
     return factory
 
@@ -96,12 +112,21 @@ def main() -> None:
     sg = inference_cfg["sglang"]
 
     logger.info("connecting to SGLang servers (must already be running - see docstring)...")
-    judge = SGLangJudge(server_url=sg["judge_server_url"], model_path=sg["launch"]["agent_model_path"], temperature=float(sg.get("temperature", 0.0)))
-    dspy_compiler = RealDSPyCompiler(sglang_api_base=f"{sg['agent_server_url']}/v1", llama_model_path=sg["agent_model_path"])
+    judge = SGLangJudge(server_url=sg["judge_server_url"], model_path=sg["launch"]["judge_model_path"], temperature=float(sg.get("temperature", 0.0)))
+    dspy_compiler = RealDSPyCompiler(sglang_api_base=f"{sg['agent_server_url']}/v1", llama_model_path=sg["launch"]["agent_model_path"])
+
+    # Recompile validation: plain SGLangSLMClient (NOT dspy_compiler's internal
+    # SGLangNativeLM adapter - different interface, validate_prompt_candidate's
+    # StrategyAgent(client=slm_client) needs the generate_structured() contract).
+    # Same agent_server_url dspy_compiler already talks to.
+    from src.inference.sglang_server import SGLangSLMClient
+    validation_slm_client = SGLangSLMClient(
+        server_url=sg["agent_server_url"], model_path=sg["launch"]["agent_model_path"],
+    )
 
     logger.info("building PyBullet env...")
     env_cfg = EnvConfig.from_config(use_gui=False, enable_reward_shaping=False)
-    env = PyBulletSumoEnv(env_config=env_cfg, opponent_policy=make_rule_based_policy())
+    env = PyBulletSumoEnv(env_config=env_cfg, opponent_policy=make_randomized_opponent_factory(seed=0, spread_multiplier=2.0)())
     env.reset()
 
     ablation = AblationConfig.for_variant(config.get("ablation", {}).get("strategy", "none"))
@@ -121,7 +146,7 @@ def main() -> None:
         judge_prune_threshold=float(config["mcts"]["judge_prune_threshold"]) if ablation.judge_enabled else 0.0,
     )
 
-    opponent_factory = _make_opponent_factory(config["opponent_pool"]["pilot_scope"])
+    opponent_factory = _make_opponent_factory()
 
     episodes = args.episodes_override or int(config["episodes_total"])
     checkpoint_interval = args.checkpoint_interval_override or int(config["self_checkpoint_interval_episodes"])
@@ -223,6 +248,8 @@ def main() -> None:
         opponent_pool=OpponentPool(
             warmup_episodes=config["opponent_pool"]["warmup_episodes"],
             total_episodes=episodes,
+            self_checkpoint_manager=checkpoint_mgr,
+            target_counts=config["opponent_pool"].get("full_run_targets"),
         ),
         scheduler=RecompilationScheduler(
             k_episodes=int(config["dspy_recompilation"]["k_rollout_batches"]),
@@ -231,6 +258,8 @@ def main() -> None:
         ),
         checkpoint_mgr=checkpoint_mgr,
         dspy_compiler=dspy_compiler,
+        slm_client=validation_slm_client,
+        validate_recompiles=True,
         strategies=STRATEGIES,
         env=env,
         executor=executor,
