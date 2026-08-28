@@ -30,12 +30,15 @@ class SGLangSLMClient(SLMClient):
     def __init__(
         self,
         server_url: str,
+        model_path: str,
         temperature: float = 0.0,
         max_tokens: int = 8,
         timeout_s: float = 30.0,
         max_concurrency: int = 16,
     ) -> None:
         self.server_url = server_url.rstrip("/")
+        self._model_path = model_path
+        self._tokenizer = None   # lazy-loaded in _chat_format, not per-call
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.timeout_s = timeout_s
@@ -76,9 +79,25 @@ class SGLangSLMClient(SLMClient):
                 f.result()   # propagate any exception
         return results  # type: ignore[return-value]
 
+    def _chat_format(self, prompt: str) -> str:
+        """Wraps `prompt` in the model's REAL chat template instead of sending it as
+        raw completion text to SGLang's native /generate endpoint (a low-level
+        text-completion endpoint - it does NOT apply chat formatting automatically).
+        Real fix for the "model doesn't know where to stop generating" failure mode
+        confirmed in held-out generation testing (e.g. 'evade_edge\\nmom=still\\n'
+        instead of stopping after 'evade_edge') - no turn-boundary signal existed in
+        plain concatenated text. Tokenizer loaded once, lazily, and cached - not
+        per-call, given how many calls this client makes."""
+        if self._tokenizer is None:
+            from transformers import AutoTokenizer
+            self._tokenizer = AutoTokenizer.from_pretrained(self._model_path)
+        return self._tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt}], tokenize=False, add_generation_prompt=True,
+        )
+
     def _build_payload(self, prompt: str, values: list[str], max_new_tokens: int | None) -> dict:
         return {
-            "text": prompt,
+            "text": self._chat_format(prompt),
             "sampling_params": {
                 "temperature": self.temperature,
                 "max_new_tokens": max_new_tokens or self.max_tokens,

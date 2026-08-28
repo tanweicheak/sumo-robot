@@ -128,20 +128,35 @@ from concurrent.futures import ThreadPoolExecutor
 
 
 class SGLangJudge(Judge):
-    def __init__(self, server_url: str, temperature: float = 0.0, timeout_s: float = 30.0,
-                 max_concurrency: int = 16) -> None:
+    def __init__(self, server_url: str, model_path: str, temperature: float = 0.0,
+                 timeout_s: float = 30.0, max_concurrency: int = 16) -> None:
         self.server_url = server_url.rstrip("/")
+        self._model_path = model_path
+        self._tokenizer = None   # lazy-loaded in _chat_format, not per-call
         self.temperature = temperature
         self.timeout_s = timeout_s
         self.max_concurrency = max_concurrency
         self.call_count = 0
+
+    def _chat_format(self, prompt: str) -> str:
+        """See src/inference/sglang_server.py's SGLangSLMClient._chat_format for the
+        full rationale - same fix, applied to the Judge's scoring prompts. Llama-3.1-
+        8B-Instruct is also chat-tuned; this endpoint never applied chat formatting
+        automatically. A real, plausible contributor to the weak MCTS/Judge
+        calibration found earlier (r~=0.25, non-monotonic bins)."""
+        if self._tokenizer is None:
+            from transformers import AutoTokenizer
+            self._tokenizer = AutoTokenizer.from_pretrained(self._model_path)
+        return self._tokenizer.apply_chat_template(
+            [{"role": "user", "content": prompt}], tokenize=False, add_generation_prompt=True,
+        )
 
     def _score_prompt(self, prompt: str) -> float:
         import requests
 
         self.call_count += 1
         payload = {
-            "text": prompt,
+            "text": self._chat_format(prompt),
             "sampling_params": {"temperature": self.temperature, "max_new_tokens": 2,
                                 "regex": "(1|2|3|4|5)"},
         }

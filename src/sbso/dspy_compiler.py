@@ -80,6 +80,7 @@ def _make_sglang_native_lm_class():
         def __init__(
             self,
             server_url: str,
+            model_path: str,
             model: str = "sglang-native",
             temperature: float = 0.0,
             max_tokens: int = 150,
@@ -91,8 +92,24 @@ def _make_sglang_native_lm_class():
                 max_tokens=max_tokens, cache=False, **kwargs,
             )
             self.server_url = server_url.rstrip("/")
+            self._model_path = model_path
+            self._tokenizer = None   # lazy-loaded in _chat_format, not per-call
             self.timeout_s = timeout_s
             self.call_count = 0
+
+        def _chat_format(self, prompt: str) -> str:
+            """Same fix as src/inference/sglang_server.py's SGLangSLMClient - wraps
+            prompt in the model's real chat template instead of sending raw
+            concatenated text. Applied on top of _flatten_prompt's existing
+            multi-message concatenation, not replacing it - that logic still handles
+            turning a `messages` list into one string; this wraps the RESULT in a
+            real chat turn before it goes to SGLang's native /generate endpoint."""
+            if self._tokenizer is None:
+                from transformers import AutoTokenizer
+                self._tokenizer = AutoTokenizer.from_pretrained(self._model_path)
+            return self._tokenizer.apply_chat_template(
+                [{"role": "user", "content": prompt}], tokenize=False, add_generation_prompt=True,
+            )
 
         def _flatten_prompt(self, prompt: str | None, messages: list[dict] | None) -> str:
             if prompt is not None:
@@ -148,7 +165,7 @@ def _make_sglang_native_lm_class():
             import requests
             from types import SimpleNamespace
 
-            text_prompt = self._flatten_prompt(prompt, messages)
+            text_prompt = self._chat_format(self._flatten_prompt(prompt, messages))
             sampling_params = {
                 "temperature": kwargs.get("temperature", self.kwargs.get("temperature", 0.0)) or 0.0,
                 # 150, not 8 (sglang_server.py's live-agent default): confirmed via
@@ -248,7 +265,23 @@ class RealDSPyCompiler(DSPyCompiler):
                 if native_base.endswith("/v1"):
                     native_base = native_base[: -len("/v1")]
                 SGLangNativeLM = _make_sglang_native_lm_class()
-                self._lm = SGLangNativeLM(server_url=native_base, model="sglang-agent")
+                # llama_model_path was previously "metadata/logging only" per this
+                # constructor's own comment - now genuinely required, for the chat
+                # template fix (SGLangNativeLM needs the real HF directory to load
+                # a tokenizer). If this is None, the chat-template fix silently
+                # cannot apply here - raise clearly instead of a confusing failure
+                # three calls deep inside _chat_format.
+                if not self.llama_model_path:
+                    raise ValueError(
+                        "RealDSPyCompiler(sglang_api_base=..., llama_model_path=...) "
+                        "now requires llama_model_path - it's used to load the real "
+                        "tokenizer for chat-template formatting, not just metadata. "
+                        "Pass the agent's HF model directory (same one used to launch "
+                        "its SGLang server)."
+                    )
+                self._lm = SGLangNativeLM(
+                    server_url=native_base, model="sglang-agent", model_path=self.llama_model_path,
+                )
             else:
                 # D5b fix: "llama_cpp/" was never a real LiteLLM provider prefix - LiteLLM
                 # (which dspy.LM routes through) only talks to models over HTTP, via
