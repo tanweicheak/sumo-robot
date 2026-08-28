@@ -51,13 +51,11 @@ def _make_opponent_factory():
     make_randomized_opponent_factory() (a FRESH randomized instance each call, not
     a single frozen one) instead of the original bare make_rule_based_policy() -
     confirmed root cause of a 0% win rate against baseline1/self_checkpoint in a
-    real completed training run (see session notes): a single frozen
-    RuleBasedParams instance is exactly the anti-pattern
-    rule_based_controller.py's own docstring warns against. This scope is
-    invariant between pilot and full run - not read from config["opponent_pool"]
-    ["pilot_scope"] (a pilot-only key that doesn't exist on other configs and
-    caused a KeyError there previously)."""
-    from src.baselines.rule_based_controller import make_randomized_opponent_factory
+    real completed training run: a single frozen RuleBasedParams instance is
+    exactly the anti-pattern rule_based_controller.py's own docstring warns
+    against. This scope is invariant between pilot and full run - not read from
+    config["opponent_pool"]["pilot_scope"] (a pilot-only key that doesn't exist on
+    other configs and caused a KeyError there previously)."""
     _cache = {}
 
     def factory(opp_type: str):
@@ -112,13 +110,19 @@ def main() -> None:
     sg = inference_cfg["sglang"]
 
     logger.info("connecting to SGLang servers (must already be running - see docstring)...")
-    judge = SGLangJudge(server_url=sg["judge_server_url"], model_path=sg["launch"]["judge_model_path"], temperature=float(sg.get("temperature", 0.0)))
-    dspy_compiler = RealDSPyCompiler(sglang_api_base=f"{sg['agent_server_url']}/v1", llama_model_path=sg["launch"]["agent_model_path"])
+    judge = SGLangJudge(
+        server_url=sg["judge_server_url"], model_path=sg["launch"]["judge_model_path"],
+        temperature=float(sg.get("temperature", 0.0)),
+    )
+    dspy_compiler = RealDSPyCompiler(
+        sglang_api_base=f"{sg['agent_server_url']}/v1", llama_model_path=sg["launch"]["agent_model_path"],
+    )
 
     # Recompile validation: plain SGLangSLMClient (NOT dspy_compiler's internal
     # SGLangNativeLM adapter - different interface, validate_prompt_candidate's
     # StrategyAgent(client=slm_client) needs the generate_structured() contract).
-    # Same agent_server_url dspy_compiler already talks to.
+    # Same agent_server_url dspy_compiler already talks to, via the proven
+    # sglang_server.py client used everywhere else in this pipeline.
     from src.inference.sglang_server import SGLangSLMClient
     validation_slm_client = SGLangSLMClient(
         server_url=sg["agent_server_url"], model_path=sg["launch"]["agent_model_path"],
@@ -126,7 +130,12 @@ def main() -> None:
 
     logger.info("building PyBullet env...")
     env_cfg = EnvConfig.from_config(use_gui=False, enable_reward_shaping=False)
-    env = PyBulletSumoEnv(env_config=env_cfg, opponent_policy=make_randomized_opponent_factory(seed=0, spread_multiplier=2.0)())
+    env = PyBulletSumoEnv(
+        env_config=env_cfg,
+        opponent_policy=make_randomized_opponent_factory(seed=0, spread_multiplier=2.0)(),
+        # placeholder only - overwritten every episode by the training loop
+        # before any real match happens; randomized here too for consistency.
+    )
     env.reset()
 
     ablation = AblationConfig.for_variant(config.get("ablation", {}).get("strategy", "none"))
@@ -175,20 +184,16 @@ def main() -> None:
 
     def _on_episode_end(ep: int, trainer: MatchLevelSBSOTrainer) -> None:
         nonlocal pairs_written, recompiles_written, calibration_written
-        # Write only the pairs collected since the last call (incremental, crash-safe -
-        # training_pairs accumulates for the whole run, so this avoids rewriting
-        # everything from scratch every episode).
         for tagged_ep, state, strategy in trainer.training_pairs[pairs_written:]:
             text = state.get("lssd", "") if isinstance(state, dict) else getattr(state, "lssd_text", "")
             strat = strategy.value if hasattr(strategy, "value") else str(strategy)
-            pairs_file.write(json.dumps({"episode": tagged_ep, "lssd_text": text, "strategy": strat}) + "\n")
+            pairs_file.write(json.dumps({
+                "episode": tagged_ep, "lssd_text": text, "strategy": strat,
+                "opponent_type": getattr(trainer, "last_opponent_type", None),
+            }) + "\n")
         pairs_written = len(trainer.training_pairs)
         pairs_file.flush()
 
-        # Record which prompt version was active over which episode range and why each
-        # recompile fired - previously computed (should_recompile's reason) then thrown
-        # away, so there was no way to answer "which prompt made this decision" or
-        # "how many times did trigger (a) vs (b) actually fire" after a run finished.
         for event in trainer.recompile_history[recompiles_written:]:
             prompt_history_file.write(json.dumps(event) + "\n")
         recompiles_written = len(trainer.recompile_history)
@@ -209,10 +214,6 @@ def main() -> None:
             }, indent=2))
 
         if use_wandb:
-            # trainer._win_history is a deque(maxlen=scheduler.window_w) - it already
-            # never holds more than the window size, so no slicing is needed (deques
-            # don't support slice indexing like list[-50:] anyway - that's what crashed
-            # here). list(...) materializes it for sum()/len() below.
             recent = list(trainer._win_history)
             elapsed_hours = sum(trainer.timing["episode_seconds"]) / 3600.0
             cost_so_far_usd = elapsed_hours * float(config["cost_projection"]["gpu_rate_usd_per_hr"])
@@ -222,20 +223,12 @@ def main() -> None:
                 "training_pairs_collected": len(trainer.training_pairs),
                 "prompt_version": trainer.prompt_version,
                 "checkpoints_taken": len(trainer.checkpoint_mgr._checkpoints),
-                # Live cost accumulation - pure arithmetic on wall-clock already
-                # tracked (trainer.timing) x the configured GPU rate. No RunPod-side
-                # telemetry needed for this piece - it's the "how many dollars have
-                # I actually spent so far" counter, distinct from the GPU
-                # utilization poller below, which DOES need the real box.
                 "elapsed_hours": round(elapsed_hours, 3),
                 "cost_so_far_usd": round(cost_so_far_usd, 2),
             }
             gpu_stats = poll_gpu_stats()
             if gpu_stats is not None:
                 log_payload.update(gpu_stats)
-            # Only log a recompile event on the episode it actually happened, not
-            # every episode - avoids a wandb chart with a misleading step-function
-            # repeated at every log call.
             if trainer.recompile_history and trainer.recompile_history[-1]["episode"] == ep:
                 event = trainer.recompile_history[-1]
                 log_payload["recompile_trigger_reason"] = event["trigger_reason"]
