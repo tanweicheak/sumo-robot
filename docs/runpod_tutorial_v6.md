@@ -449,11 +449,12 @@ fields if you logged in for §9) told you roughly what to expect for each.
 ## 15. After training — export the model (Benchmark 2 only, not the ablations)
 
 ```bash
-python -m scripts.run_export_pipeline \
-    --adapter-path checkpoints/benchmark2_full_sbso/lora_run/lora_adapters \
-    --output-dir /workspace/export/benchmark2_full_sbso \
-    --calibration-texts-file checkpoints/benchmark2_full_sbso/gptq_calibration_texts.txt \
-    --config config/export_pipeline.yaml
+# 1. Real, full-dataset LoRA fine-tune - this hasn't been run yet
+python -m scripts.run_lora_finetune \
+    --training-pairs checkpoints/benchmark2_full_sbso/training_pairs.jsonl \
+    --hf-model-path /workspace/models/phi-4-mini-hf \
+    --output-dir checkpoints/benchmark2_full_sbso \
+    --use-wandb
     ```
 
 This runs merge → {GPTQ INT4, GGUF-f16 → Q4_K_M} per the two-branch export
